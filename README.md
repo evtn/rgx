@@ -86,9 +86,22 @@ print(
 
 ```  
 
----
+### Conditional pattern
 
-For a conditional pattern, use `rgx.conditional(group: int, x, y)` (where `x` matches if `group` has matched, and `y` otherwise)
+```python
+import rgx
+
+x = rgx.pattern("x")
+y = rgx.pattern("y")
+z = rgx.pattern("z")
+
+capture = x.capture()
+
+# (x)(?(1)y|y)
+print(
+    capture + rgx.conditional(1, y, z)
+)
+``` 
 
 ## Basic usage
 
