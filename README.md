@@ -155,7 +155,7 @@ z = rgx.pattern("z")
 
 capture = x.capture()
 
-# (x)(?(1)y|y)
+# (x)(?(1)y|z)
 print(
     capture + rgx.conditional(1, y, z)
 )
