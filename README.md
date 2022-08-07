@@ -30,7 +30,7 @@ regex = rgx.pattern((
         word + rgx.meta.WHITESPACE
     ).maybe(),
     "world"
-)) # (?:hello,?\s(?:(\w*)\s)?world)
+)) # (?:hello,?\s(?:(\w+)\s)?world)
 
 re.compile(
     regex.render_str("i") # global flag (case-insensitive)
@@ -155,7 +155,7 @@ z = rgx.pattern("z")
 
 capture = x.capture()
 
-# (x)(?(1)y|y)
+# (x)(?(1)y|z)
 print(
     capture + rgx.conditional(1, y, z)
 )
