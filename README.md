@@ -30,7 +30,7 @@ regex = rgx.pattern((
         word + rgx.meta.WHITESPACE
     ).maybe(),
     "world"
-)) # (?:hello,?\s(?:(\w*)\s)?world)
+)) # (?:hello,?\s(?:(\w+)\s)?world)
 
 re.compile(
     regex.render_str("i") # global flag (case-insensitive)
