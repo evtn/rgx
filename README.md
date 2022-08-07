@@ -11,6 +11,64 @@ It can produce a regular expression string to use in `re.compile` or any other r
 
 That's it.
 
+## Basic usage
+
+### Hello, regex world
+
+```python
+import rgx
+import re
+
+word = rgx.meta.WORD_CHAR.many().capture() # (\w+), a capturing group
+comma = rgx.pattern(",").maybe()
+
+regex = rgx.pattern((
+    "hello",
+    comma,
+    rgx.meta.WHITESPACE,
+    (
+        word + rgx.meta.WHITESPACE
+    ).maybe(),
+    "world"
+)) # (?:hello,?\s(?:(\w*)\s)?world)
+
+re.compile(
+    regex.render_str("i") # global flag (case-insensitive)
+)
+
+```
+
+### Match some integers
+
+this regex will match valid Python integer literals:
+
+```python
+import rgx
+import re
+
+nonzero = rgx.char_range("1", "9") # [1-9]
+zero = "0"
+digit = zero | nonzero # 0|[1-9]
+integer = zero | (nonzero + digit.some()) # 0|[1-9](?:0|[1-9])*
+
+int_regex = re.compile(str(integer))
+
+```
+
+...or this one:
+
+```python
+import rgx
+import re
+
+nonzero = rgx.char_range("1", "9") # [1-9]
+digit = rgx.meta.DIGIT # \d
+integer = digit | (nonzero + digit.some()) # \d|[1-9]\d*
+
+int_regex = re.compile(str(integer))
+
+```
+
 ## Quickstart
 
 *in this readme, `x` means some pattern object. Occaasionaly, `y` is introduced to mean some other pattern object (or literal)*
@@ -102,64 +160,6 @@ print(
     capture + rgx.conditional(1, y, z)
 )
 ``` 
-
-## Basic usage
-
-### Hello, regex world
-
-```python
-import rgx
-import re
-
-word = rgx.meta.WORD_CHAR.many().capture() # (\w+), a capturing group
-comma = rgx.pattern(",").maybe()
-
-regex = rgx.pattern((
-    "hello",
-    comma,
-    rgx.meta.WHITESPACE,
-    (
-        word + rgx.meta.WHITESPACE
-    ).maybe(),
-    "world"
-)) # (?:hello,?\s(?:(\w*)\s)?world)
-
-re.compile(
-    regex.render_str("i") # global flag (case-insensitive)
-)
-
-```
-
-### Match some integers
-
-this regex will match valid Python integer literals:
-
-```python
-import rgx
-import re
-
-nonzero = rgx.char_range("1", "9") # [1-9]
-zero = "0"
-digit = zero | nonzero # 0|[1-9]
-integer = zero | (nonzero + digit.some()) # 0|[1-9](?:0|[1-9])*
-
-int_regex = re.compile(str(integer))
-
-```
-
-...or this one:
-
-```python
-import rgx
-import re
-
-nonzero = rgx.char_range("1", "9") # [1-9]
-digit = rgx.meta.DIGIT # \d
-integer = digit | (nonzero + digit.some()) # \d|[1-9]\d*
-
-int_regex = re.compile(str(integer))
-
-```
 
 ## Docs
 
@@ -330,7 +330,7 @@ x.not_before(y) # x(?!y)
 
 #### `pattern.lookbehind(other: RegexPattern) -> Concat`
 
-Use this to indicate that given pattern occurs after some another pattern (lookahead).
+Use this to indicate that given pattern occurs after some another pattern (lookbehind).
 
 In other words, `x.lookbehind(y)` matches a pattern `x` only if there is `y` before it
 
@@ -345,7 +345,7 @@ x.after(y) # (?<=y)x
 
 #### `pattern.negative_lookbehind(other) -> Concat`
 
-Use this to indicate that given pattern goes before some another pattern (lookahead).
+Use this to indicate that given pattern goes before some another pattern (negative lookbehind).
 
 In other words, `x.negative_lookbehind(y)` matches a pattern `x` only if there is NO `y` before it
 
