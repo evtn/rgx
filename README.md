@@ -15,8 +15,10 @@ That's it.
 
 *in this readme, `x` means some pattern object. Occaasionaly, `y` is introduced to mean some other pattern object (or literal)*
 
+### Literals and pattern objects
+
 `rgx` operates mostly on so-called "pattern objects" — `rgx.entities.RegexPattern` istances.    
-Your starting point would be `rgx.pattern` — it creates pattern objects from literals (or from pattern objects which doesn't make a lot of sense).
+Your starting point would be `rgx.pattern` — it creates pattern objects from literals (and from pattern objects, which doesn't make a lot of sense).
 
 - `rgx.pattern(str, escape: bool = True)` creates a literal pattern — one that exactly matches given string. If you want to disable escaping, pass `escape=False`
 - `rgx.pattern(tuple[AnyRegexPattern])` creates a non-capturing group of patterns (nested literals will be converted too)
@@ -24,14 +26,67 @@ Your starting point would be `rgx.pattern` — it creates pattern objects from l
 
 Most operations with pattern objects support using Python literals on one side, for example: `rgx.pattern("a") | b` would produce `a|b` pattern object (specifically, `rgx.entities.Option`)    
 
-To render pattern, use either `x.render_str(flags: str)` or `str(x)`. The only difference is that you can't pass regex flags into `str()`.    
+### Rendering patterns
+
+```python
+
+import rgx
+
+x = rgx.pattern("x")
+pattern = x | x
+
+rendered_with_str = str(pattern) # "x|x"
+rendered_with_method = pattern.render_str() # "x|x"
+rendered_with_method_flags = pattern.render_str("im") # (?im)x|x
+```    
+
+### Capturing Groups
+
+```python
+import rgx
+
+x = rgx.pattern("x")
+
+print(x.capture()) # (x)
+
+print(rgx.reference(1)) # \1
+
+
+named_x = x.named("some_x") # x.named(name: str)
+
+print(named_x) # (?P<some_x>x)
+
+named_x_reference = rgx.named("some_x")
+
+print(named_x_reference) # (?P=x)
+
+```
 
 To create a capturing group, use `x.capture()`, or `rgx.reference(group: int)` for a named reference.    
 To create a named capturing group, use `rgx.named(name: str, x)`, or `rgx.named(name: str)` for a named reference.    
 
-For character ranges (`[a-z]`), use `rgx.char_range(start?: str, stop?: str)`.    
-Multiple character classes can be combined with `|`: `(rgx.char_range("a", "z")) | rgx.pattern(["1", "2", "3"])` -> `[a-z123]`    
-To reverse character class (`[a-z123]` -> `[^a-z123]`), use `x.reverse()` (works only on character classes).    
+### Character classes
+
+```python
+import rgx
+
+
+az = rgx.char_range("a", "z") # rgx.char_range(start?: str, stop?: str)
+print(az) # [a-z]
+
+digits = rgx.pattern(["1", "2", "3"]) 
+print(digits) # [123]
+
+print(az | digits) # [a-z123]
+
+# [^a-z123]
+print(
+    (az | digits).reverse() # rgx.entities.Chars.reverse(self)
+)
+
+```  
+
+---
 
 For a conditional pattern, use `rgx.conditional(group: int, x, y)` (where `x` matches if `group` has matched, and `y` otherwise)
 
@@ -107,8 +162,6 @@ Renders given pattern into a string with specified global flags.
 
 This method adds local flags to given pattern
 
-Render:
-
 ```python
 x.flags("y") # "(?y:x)"
 ```
@@ -120,8 +173,6 @@ x.flags("y") # "(?y:x)"
 Use to match one pattern and then another.
 
 `A.concat(B)` is equivalent to `A + B` (works if either A or B is a RegexPart object, not a Python literal)
-
-Render:
 
 ```python
 x.concat(y) # "xy"
@@ -136,8 +187,6 @@ Use to match either one pattern or another.
 
 `A.option(B)` is equivalent to `A | B` (if either A or B is a RegexPart object, not a Python literal)
 
-Render:
-
 ```python
 x.option(y) # "x|y"
 x | y # "x|y"
@@ -150,8 +199,6 @@ x | y # "x|y"
 Use this for repeating patterns (one or more times)
 
 When not lazy, matches as many times as possible, otherwise matches as few times as possible.
-
-Render:
 
 ```python
 x.many() # "x+"
@@ -166,8 +213,6 @@ Use this for repeating optional patterns (zero or more times)
 
 When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-Render:
-
 ```python
 x.some() # "x*"
 x.some(True) # "x*?"
@@ -180,8 +225,6 @@ x.some(True) # "x*?"
 Use this for optional patterns (zero or one times)
 
 When not lazy, matches as many times as possible, otherwise matches as few times as possible.
-
-Render:
 
 ```python
 x.maybe() # "x?"
@@ -196,8 +239,6 @@ Use this to match pattern x or less times (hence the name).
 
 When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-Render:
-
 ```python
 x.x_or_less_times(5) # "x{,5}"
 x.x_or_less_times(5, True) # "x{,5}?"
@@ -210,8 +251,6 @@ x.x_or_less_times(5, True) # "x{,5}?"
 Use this to match pattern x or more times (hence the name).
 
 When not lazy, matches as many times as possible, otherwise matches as few times as possible.
-
-Render:
 
 ```python
 x.x_or_more_times(5) # "x{5,}"
@@ -226,8 +265,6 @@ Use this to match pattern exactly x times (hence the name).
 
 When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-Render:
-
 ```python
 x.x_times(5) # "x{5}"
 x.x_times(5, True) # "x{5}?"
@@ -240,8 +277,6 @@ x.x_times(5, True) # "x{5}?"
 Use this to match pattern between x and y times, inclusive (hence the name).
 
 When not lazy, matches as many times as possible, otherwise matches as few times as possible.
-
-Render:
 
 ```python
 x.between_x_y_times(5, 6) # "x{5,6}"
@@ -258,8 +293,6 @@ In other words, `x.lookahead(y)` matches a pattern `x` only if there is `y` afte
 
 Lookahead pattern won't be captured.
 
-Render:
-
 ```python
 x.lookahead(y) # x(?=y)
 x.before(y) # x(?=y)
@@ -274,8 +307,6 @@ Use this to indicate that given pattern doesn't occur before some another patter
 In other words, `x.negative_lookahead(y)` matches a pattern `x` only if there is no `y` after it
 
 Lookahead pattern won't be captured.
-
-Render:
 
 ```python
 x.negative_lookahead(y) # x(?!y)
@@ -292,8 +323,6 @@ In other words, `x.lookbehind(y)` matches a pattern `x` only if there is `y` bef
 
 Lookbehind pattern won't be captured.
 
-Render:
-
 ```python
 x.lookbehind(y) # (?<=y)x
 x.after(y) # (?<=y)x
@@ -309,8 +338,6 @@ In other words, `x.negative_lookbehind(y)` matches a pattern `x` only if there i
 
 Lookbehind pattern won't be captured.
 
-Render:
-
 ```python
 x.negative_lookbehind(y) # (?<!y)x
 x.not_after(y) # (?<!y)x
@@ -321,8 +348,6 @@ x.not_after(y) # (?<!y)x
 #### `pattern.capture() -> Group`
 
 Use this to make a capturing group out of pattern.
-
-Render:
 
 ```python
 x.capture() # (x)

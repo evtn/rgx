@@ -21,7 +21,7 @@ def pattern(literal: List[str], escape: bool = True) -> Chars:
 def pattern(literal: RegexPattern, escape: bool = True) -> RegexPattern:
     ...
 @overload
-def pattern(literal: str, escape: bool) -> Union[UnescapedLiteral, Literal]:
+def pattern(literal: str, escape: bool = True) -> Union[UnescapedLiteral, Literal]:
     ...
 def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     """
@@ -86,11 +86,8 @@ class RegexPattern:
         """
         This method adds local flags to given pattern
 
-        Render:
-
         ```python
         x.flags("y") # "(?y:x)"
-
         ```
         """
         return LocalFlags(self, flags)
@@ -106,8 +103,6 @@ class RegexPattern:
         Use to match one pattern and then another.
 
         `A.concat(B)` is equivalent to `A + B` (if either A or B is a RegexPart object, not a Python literal)
-
-        Render:
 
         ```python
         x.concat(y) # "xy"
@@ -128,8 +123,6 @@ class RegexPattern:
 
         `A.option(B)` is equivalent to `A | B` (if either A or B is a RegexPart object, not a Python literal)
 
-        Render:
-
         ```python
         x.option(y) # "x|y"
         x | y # "x|y"
@@ -143,8 +136,6 @@ class RegexPattern:
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
         
-        Render:
-
         ```python
         x.many() # "x+"
         x.many(True) # "x+?"
@@ -159,8 +150,6 @@ class RegexPattern:
         Use this for repeating optional patterns (zero or more times)
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
-
-        Render:
 
         ```python
         x.some() # "x*"
@@ -177,8 +166,6 @@ class RegexPattern:
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-        Render:
-        
         ```python
         x.maybe() # "x?"
         x.maybe(True) # "x??"
@@ -195,8 +182,6 @@ class RegexPattern:
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-        Render:
-        
         ```python
         x.x_or_less_times(5) # "x{,5}"
         x.x_or_less_times(5, True) # "x{,5}?"
@@ -211,8 +196,6 @@ class RegexPattern:
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-        Render:
-        
         ```python
         x.x_or_more_times(5) # "x{5,}"
         x.x_or_more_times(5, True) # "x{5,}?"
@@ -227,8 +210,6 @@ class RegexPattern:
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-        Render:
-        
         ```python
         x.x_times(5) # "x{5}"
         x.x_times(5, True) # "x{5}?"
@@ -243,8 +224,6 @@ class RegexPattern:
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
 
-        Render:
-        
         ```python
         x.between_x_y_times(5, 6) # "x{5,6}"
         x.between_x_y_times(5, 6, True) # "x{5,6}?"
@@ -259,8 +238,6 @@ class RegexPattern:
         In other words, `x.lookahead(y)` matches a pattern `x` only if there is `y` after it
 
         Lookahead pattern won't be captured.
-
-        Render:
 
         ```python
         x.lookahead(y) # x(?=y)
@@ -279,8 +256,6 @@ class RegexPattern:
 
         Lookahead pattern won't be captured.
 
-        Render:
-
         ```python
         x.negative_lookahead(y) # x(?!y)
         x.not_before(y) # x(?!y)
@@ -298,8 +273,6 @@ class RegexPattern:
 
         Lookbehind pattern won't be captured.
 
-        Render:
-
         ```python
         x.lookbehind(y) # (?<=y)x
         x.after(y) # (?<=y)x
@@ -316,8 +289,6 @@ class RegexPattern:
         In other words, `x.negative_lookbehind(y)` matches a pattern `x` only if there is NO `y` before it
 
         Lookbehind pattern won't be captured.
-
-        Render:
 
         ```python
         x.negative_lookbehind(y) # (?<!y)x
@@ -337,13 +308,14 @@ class RegexPattern:
         
         Use this to make a capturing group out of pattern.
 
-        Render:
-
         ```python
         x.capture() # (x)
         ```
         """
         return Group(self)
+
+    def named(self, name: str) -> NamedPattern:
+        return NamedPattern(name, self)
 
 class GroupBase(RegexPattern):
     contents: RegexPattern
@@ -560,8 +532,6 @@ class NamedPattern(RegexPattern):
 
     If `contents` are omitted, generates a reference, otherwise a named group definition.
 
-    Render:
-
     ```python
     pattern.named("x", y) # (?P<x>y)
     pattern.named("x") # (?P=x)
@@ -671,8 +641,6 @@ def group_reference(group: int) -> UnescapedLiteral:
     
     Renders into a group reference (backreference)
     E.g. if Group #1 is `(x|y)` and it has matched "x", `reference(1)` would match exactly "x", but not "y"
-
-    Render:
 
     ```python
     rgx.reference(1) # \\1
