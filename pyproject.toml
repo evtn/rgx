@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "rgx"
+version = "1.0.0"
+description = "Typed, simple and readable regexp generation"
+authors = ["Dmitry Gritsenko <k01419q45@ya.ru>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/courage-tci/gekkota"
+homepage = "https://github.com/courage-tci/gekkota"
+keywords = ["regex", "regexp", "regular expressions"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
