@@ -1,29 +1,27 @@
 from __future__ import annotations
 from collections.abc import Iterable, Sequence
 
-from typing import Generator, Optional, Union, overload, Literal as LiteralType
+from typing import Generator, Optional, Union, overload, List
+
 import itertools
 import re
 
 StrGen = Generator[str, None, None]
 CharType = Union[str, "CharRange"]
-LiteralPart = Union[tuple, list[str], str]
+LiteralPart = Union[tuple, List[str], str]
 AnyRegexPattern = Union[LiteralPart, "RegexPattern"]
 
 @overload
 def pattern(literal: tuple, escape: bool = True) -> Union[RegexPattern, NonCapturingGroup]:
     ...
 @overload
-def pattern(literal: list[str], escape: bool = True) -> Chars:
+def pattern(literal: List[str], escape: bool = True) -> Chars:
     ...
 @overload
 def pattern(literal: RegexPattern, escape: bool = True) -> RegexPattern:
     ...
 @overload
-def pattern(literal: str, escape: LiteralType[False]) -> UnescapedLiteral:
-    ...
-@overload
-def pattern(literal: str, escape: LiteralType[True] = True) -> Literal:
+def pattern(literal: str, escape: bool) -> Union[UnescapedLiteral, Literal]:
     ...
 def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     """
