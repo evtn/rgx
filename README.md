@@ -330,7 +330,7 @@ x.not_before(y) # x(?!y)
 
 #### `pattern.lookbehind(other: RegexPattern) -> Concat`
 
-Use this to indicate that given pattern occurs after some another pattern (lookahead).
+Use this to indicate that given pattern occurs after some another pattern (lookbehind).
 
 In other words, `x.lookbehind(y)` matches a pattern `x` only if there is `y` before it
 
@@ -345,7 +345,7 @@ x.after(y) # (?<=y)x
 
 #### `pattern.negative_lookbehind(other) -> Concat`
 
-Use this to indicate that given pattern goes before some another pattern (lookahead).
+Use this to indicate that given pattern goes before some another pattern (negative lookbehind).
 
 In other words, `x.negative_lookbehind(y)` matches a pattern `x` only if there is NO `y` before it
 
