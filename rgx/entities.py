@@ -634,6 +634,8 @@ class Meta:
     CARRIAGE_RETURN = UnescapedLiteral(r"\r")
     TAB = UnescapedLiteral(r"\t")
     NULL_CHAR = UnescapedLiteral(r"\0")
+    STRING_START = UnescapedLiteral("^")
+    STRING_END = UnescapedLiteral("$")
 
 
 def group_reference(group: int) -> UnescapedLiteral:

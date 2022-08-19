@@ -366,6 +366,28 @@ Use this to make a capturing group out of pattern.
 x.capture() # (x)
 ```
 
+### Meta
+
+`rgx.meta` is a collection of different meta-sequences and anchors:
+
+```python
+WORD_CHAR = UnescapedLiteral(r"\w")
+NON_WORD_CHAR = UnescapedLiteral(r"\W")
+DIGIT = UnescapedLiteral(r"\d")
+NON_DIGIT = UnescapedLiteral(r"\D")
+WHITESPACE = UnescapedLiteral(r"\s")
+NON_WHITESPACE = UnescapedLiteral(r"\S")
+WORD_BOUNDARY = UnescapedLiteral(r"\b")
+NON_WORD_BOUNDARY = UnescapedLiteral(r"\B")
+ANY = UnescapedLiteral(".")
+NEWLINE = UnescapedLiteral(r"\n")
+CARRIAGE_RETURN = UnescapedLiteral(r"\r")
+TAB = UnescapedLiteral(r"\t")
+NULL_CHAR = UnescapedLiteral(r"\0")
+STRING_START = UnescapedLiteral("^")
+STRING_END = UnescapedLiteral("$")
+```
+
 ## Common questions
 
 ### Difference between `(x, y)` and `x + y`
