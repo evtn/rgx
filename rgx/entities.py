@@ -7,7 +7,7 @@ import itertools
 import re
 
 StrGen = Generator[str, None, None]
-CharType = Union[str, "CharRange"]
+CharType = Union[str, "CharRange", "Literal"]
 LiteralPart = Union[tuple, List[str], str]
 AnyRegexPattern = Union[LiteralPart, "RegexPattern"]
 
@@ -21,7 +21,7 @@ def pattern(literal: List[str], escape: bool = True) -> Chars:
 def pattern(literal: RegexPattern, escape: bool = True) -> RegexPattern:
     ...
 @overload
-def pattern(literal: str, escape: bool = True) -> Union[UnescapedLiteral, Literal]:
+def pattern(literal: str, escape: bool = True) -> Literal:
     ...
 def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     """
@@ -365,7 +365,7 @@ class Chars(RegexPattern):
         if self.is_reversed:
             yield "^"
         for char in self.contents:
-            if isinstance(char, CharRange):
+            if isinstance(char, (Literal, CharRange)):
                 yield from char.render()
             else:
                 yield re.escape(char)
@@ -597,24 +597,21 @@ class ConditionalPattern(RegexPattern):
 
 class Literal(RegexPattern):
     def __init__(self, contents: str) -> None:
-        self.contents = contents
+        self.contents: str = contents
 
     def render(self) -> StrGen:
         yield re.escape(self.contents)
 
 
-class UnescapedLiteral(RegexPattern):
+class UnescapedLiteral(Literal):
     """
     
     Unescaped literal. Renders into whatever is passed (as long as it is a string)
 
     """
 
-    def __init__(self, contents: str) -> None:
-        self.contents: str = contents
-
     def render(self) -> StrGen:
-        yield self.contents
+        yield str(self.contents)
 
 
 class Meta:
