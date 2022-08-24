@@ -4,6 +4,7 @@ Many others complain about how they can't remember all constructs and features.
 `rgx` solves those problems: it is a straightforward regexp builder. It also places parens where needed to respect intended operator priority.    
 It can produce a regular expression string to use in `re.compile` or any other regex library of your choice.    
 
+In other words, with `rgx` you can build a regular expression from parts, using straightforward and simple expressions.
 
 ## Installation
 
@@ -71,7 +72,7 @@ int_regex = re.compile(str(integer))
 
 ## Quickstart
 
-*in this readme, `x` means some pattern object. Occaasionaly, `y` is introduced to mean some other pattern object (or literal)*
+*in this readme, `x` means some pattern object. Occasionaly, `y` is introduced to mean some other pattern object (or literal)*
 
 ### Literals and pattern objects
 
@@ -120,7 +121,7 @@ print(named_x_reference) # (?P=x)
 
 ```
 
-To create a capturing group, use `x.capture()`, or `rgx.reference(group: int)` for a named reference.    
+To create a capturing group, use `x.capture()`, or `rgx.reference(group: int)` for a reference.    
 To create a named capturing group, use `rgx.named(name: str, x)`, or `rgx.named(name: str)` for a named reference.    
 
 ### Character classes
@@ -132,14 +133,14 @@ import rgx
 az = rgx.char_range("a", "z") # rgx.char_range(start?: str, stop?: str)
 print(az) # [a-z]
 
-digits = rgx.pattern(["1", "2", "3"]) 
-print(digits) # [123]
+digits_or_space = rgx.pattern(["1", "2", "3", rgx.meta.WHITESPACE]) 
+print(digits_or_space) # [123\s]
 
-print(az | digits) # [a-z123]
+print(az | digits_or_space) # [a-z123\s]
 
-# [^a-z123]
+# [^a-z123\s]
 print(
-    (az | digits).reverse() # rgx.entities.Chars.reverse(self)
+    (az | digits_or_space).reverse() # rgx.entities.Chars.reverse(self)
 )
 
 ```  
