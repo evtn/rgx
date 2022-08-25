@@ -8,14 +8,14 @@ import re
 
 StrGen = Generator[str, None, None]
 CharType = Union[str, "CharRange", "Literal"]
-LiteralPart = Union[tuple, List[str], str]
+LiteralPart = Union[tuple, List[CharType], str]
 AnyRegexPattern = Union[LiteralPart, "RegexPattern"]
 
 @overload
 def pattern(literal: tuple, escape: bool = True) -> Union[RegexPattern, NonCapturingGroup]:
     ...
 @overload
-def pattern(literal: List[str], escape: bool = True) -> Chars:
+def pattern(literal: List[CharType], escape: bool = True) -> Chars:
     ...
 @overload
 def pattern(literal: RegexPattern, escape: bool = True) -> RegexPattern:
