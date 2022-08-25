@@ -61,6 +61,7 @@ class TestClass:
         assert ((a | b) + b).render_str() == "(?:a|b)b"
         assert ((a + b) | b).render_str() == "ab|b"
         assert a.many().many().render_str() == "(?:a+)+"
+        assert (a + b).many().render_str() == "(?:ab)+"
 
     def test_flags(self):
         assert a.set_flags("i").render_str() == "(?i:a)"
