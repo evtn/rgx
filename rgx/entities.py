@@ -598,6 +598,8 @@ class ConditionalPattern(RegexPattern):
 class Literal(RegexPattern):
     def __init__(self, contents: str) -> None:
         self.contents: str = contents
+        if len(self.contents) != 1:
+            self.priority = 2
 
     def render(self) -> StrGen:
         yield re.escape(self.contents)
