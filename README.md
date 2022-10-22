@@ -1,7 +1,8 @@
 Many people complain about unreadable and complex syntax of regular expressions.    
 Many others complain about how they can't remember all constructs and features.
 
-`rgx` solves those problems: it is a straightforward regexp builder. It also places parens where needed to respect intended operator priority.    
+`rgx` solves those problems: it is a straightforward regexp builder. It also places non-capturing groups where needed to respect intended operator priority.   
+It tries to produce a clean  
 It can produce a regular expression string to use in `re.compile` or any other regex library of your choice.    
 
 In other words, with `rgx` you can build a regular expression from parts, using straightforward and simple expressions.
@@ -47,10 +48,10 @@ this regex will match valid Python integer literals:
 import rgx
 import re
 
-nonzero = rgx.char_range("1", "9") # [1-9]
+nonzero = rgx.pattern("1").to("9") # [1-9]
 zero = "0"
-digit = zero | nonzero # 0|[1-9]
-integer = zero | (nonzero + digit.some()) # 0|[1-9](?:0|[1-9])*
+digit = zero | nonzero # [0-9]
+integer = zero | (nonzero + digit.some()) # 0|[1-9][0-9]*
 
 int_regex = re.compile(str(integer))
 
@@ -62,7 +63,7 @@ int_regex = re.compile(str(integer))
 import rgx
 import re
 
-nonzero = rgx.char_range("1", "9") # [1-9]
+nonzero = rgx.pattern("1").to("9") # [1-9]
 digit = rgx.meta.DIGIT # \d
 integer = digit | (nonzero + digit.some()) # \d|[1-9]\d*
 
@@ -82,8 +83,9 @@ Your starting point would be `rgx.pattern` — it creates pattern objects from l
 - `rgx.pattern(str, escape: bool = True)` creates a literal pattern — one that exactly matches given string. If you want to disable escaping, pass `escape=False`
 - `rgx.pattern(tuple[AnyRegexPattern])` creates a non-capturing group of patterns (nested literals will be converted too)
 - `rgx.pattern(list[str])` creates a character class (for example, `rgx.pattern(["a", "b", "c"])` creates pattern `[abc]`, that matches any character of those in brackets)
+    - Same can be achieved by `rgx.pattern("a").to("c")` or `rgx.pattern("a") | "b" | "c"`
 
-Most operations with pattern objects support using Python literals on one side, for example: `rgx.pattern("a") | b` would produce `a|b` pattern object (specifically, `rgx.entities.Option`)    
+Most operations with pattern objects support using Python literals on one side, for example: `rgx.pattern("a") | b` would produce `[ab]` pattern object (specifically, `rgx.entities.Chars`)    
 
 ### Rendering patterns
 
@@ -91,12 +93,13 @@ Most operations with pattern objects support using Python literals on one side, 
 
 import rgx
 
-x = rgx.pattern("x")
-pattern = x | x
+x = rgx.pattern("one")
+y = rgx.pattern("two")
+pattern = x | y
 
-rendered_with_str = str(pattern) # "x|x"
-rendered_with_method = pattern.render_str() # "x|x"
-rendered_with_method_flags = pattern.render_str("im") # (?im)x|x
+rendered_with_str = str(pattern) # "one|two"
+rendered_with_method = pattern.render_str() # "one|two"
+rendered_with_method_flags = pattern.render_str("im") # (?im)one|two
 ```    
 
 ### Capturing Groups
@@ -130,7 +133,7 @@ To create a named capturing group, use `rgx.named(name: str, x)`, or `rgx.named(
 import rgx
 
 
-az = rgx.char_range("a", "z") # rgx.char_range(start?: str, stop?: str)
+az = rgx.pattern("a").to("z") # rgx.Chars.to(other: str | Literal | Chars)
 print(az) # [a-z]
 
 digits_or_space = rgx.pattern(["1", "2", "3", rgx.meta.WHITESPACE]) 
@@ -138,9 +141,9 @@ print(digits_or_space) # [123\s]
 
 print(az | digits_or_space) # [a-z123\s]
 
-# [^a-z123\s]
-print(
-    (az | digits_or_space).reverse() # rgx.entities.Chars.reverse(self)
+
+print( # rgx.entities.Chars.reverse(self)
+    (az | digits_or_space).reverse() # [^a-z123\s]
 )
 
 ```  
@@ -161,6 +164,58 @@ print(
     capture + rgx.conditional(1, y, z)
 )
 ``` 
+
+### Repeating patterns
+
+If you need to match a repeating pattern, you can use `pattern.repeat(count, lazy)`:
+
+```python
+a = pattern("a")
+
+a.repeat(5)                      # a{5}
+# or
+a * 5                            # a{5}, multiplication is an alias for .repeat
+
+a.repeat(5).or_more()            # a{5,}
+a.repeat(5).or_less()            # a{,5}
+
+a.repeat_from(4).to(5)           # a{4, 5}  [.repeat_from is just an alias]
+# or
+a.repeat(4) >> 5                 # a{4, 5}
+
+a.repeat(1).or_less()            # a?
+# or
+-a.repeat(1)                     # a?
+# or
+a.maybe()                        # a?
+
+a.repeat(1).or_more()            # a+
+# or
++a.repeat(1)                     # a+
+# or
++a                               # a+
+# or
+a.many()                         # a+
+
+a.repeat(0).or_more()            # a*
+# or
++a.repeat(0)                     # a*
+# or
+a.some()                         # a*
+# or (what)
++-(a * 38)                       # a*
+```
+Here's what's going on:    
+`pattern.repeat(count, lazy)` returns a `{count, count}` `Range` object
+`pattern * count` is the same as `pattern.repeat(count, False)`
+
+`Range` implements `or_more`, `or_less` and `to` methods:
+
+- `Range.or_more()` [or `+Range`] moves (on a copy) upper bound of range to infinity (actually `None`)
+- `Range.or_less()` [or `-Range`] moves (on a copy) lower bound of range to 0
+- `Range.to(count)` [or `Range >> count` (right shift)] replaces upper bound with given number
+
+Also, RegexPattern implements unary plus (`+pattern`) as an alias for `pattern.many()`
 
 ## Docs
 
@@ -195,7 +250,7 @@ x + y # "xy"
 
 ---
 
-#### `pattern.option(other: AnyRegexPattern) -> Option`
+#### `pattern.option(other: AnyRegexPattern) -> Chars | ReversedChars | Option`
 
 Use to match either one pattern or another.
 
@@ -208,7 +263,7 @@ x | y # "x|y"
 
 ---
 
-#### `pattern.many(lazy: bool = False) -> Many`
+#### `pattern.many(lazy: bool = False) -> Range`
 
 Use this for repeating patterns (one or more times)
 
@@ -221,7 +276,7 @@ x.many(True) # "x+?"
 
 ---
 
-#### `pattern.some(lazy: bool = False) -> Some`
+#### `pattern.some(lazy: bool = False) -> Range`
 
 Use this for repeating optional patterns (zero or more times)
 
@@ -234,7 +289,7 @@ x.some(True) # "x*?"
 
 ---
 
-#### `pattern.maybe(lazy: bool = False) -> Maybe`
+#### `pattern.maybe(lazy: bool = False) -> Range`
 
 Use this for optional patterns (zero or one times)
 
@@ -282,6 +337,7 @@ When not lazy, matches as many times as possible, otherwise matches as few times
 ```python
 x.x_times(5) # "x{5}"
 x.x_times(5, True) # "x{5}?"
+x.repeat(5) # x{5}
 ```
 
 ---
@@ -388,6 +444,147 @@ NULL_CHAR = UnescapedLiteral(r"\0")
 STRING_START = UnescapedLiteral("^")
 STRING_END = UnescapedLiteral("$")
 ```
+
+Also `rgx.meta.CHAR_ESCAPE(char_number: int)` is available:
+
+```python
+from rgx import meta
+
+print(meta.CHAR_ESCAPE(32)) # \x20
+print(meta.CHAR_ESCAPE(320)) # \u0140
+print(meta.CHAR_ESCAPE(320000)) # \U0004e200
+
+```
+
+### Unicode meta
+
+`rgx.unicode_meta` is a collection of functions and constants, mostly for `\p` and `\P` usage:
+
+Functions:    
+- `unicode_meta.PROPERTY(value: str)` renders into `\p{value}` (any character with property specified by value, e.g. `PROPERTY("Ll") -> \p{Ll}`)
+- `unicode_meta.PROPERTY_INVERSE(value: str)` - matches all characters *not* matched by corresponding `PROPERTY` (`\P{value}`)
+
+- `unicode_meta.NAMED_PROPERTY(name: str, value: str)` - renders into `\p{name=value}` and matches any character which property `name` equals `value`
+- `unicode_meta.NAMED_PROPERTY_INVERSE(name: str, value: str)` - same, but inverted (`\P{name=value}`)
+
+Constants:    
+- `LETTER = PROPERTY("L")`
+- `NON_LETTER = PROPERTY_INVERSE("L")`
+
+- `WHITESPACE = PROPERTY("Z")`
+- `NON_WHITESPACE = PROPERTY_INVERSE("Z")`
+
+- `DIGIT = PROPERTY("Nd")`
+- `NON_DIGIT = PROPERTY("Nd")`
+
+## Extending
+
+You can extend generation by subclassing one of the classes of `rgx.entities` module.    
+The one neccessary method to provide is `.render(self)`. It should return an iterable of strings (e.g. `["something"]`).    
+Built-in components (and this section) are using generators for that purpose, but you're free to choose whatever works for you.
+For example, if you want to render a PCRE accept control verb - `(*ACCEPT)`, you can do it like this:
+
+
+```python
+from rgx.entities import RegexPattern, Concat
+from rgx import pattern
+from typing import Iterable
+
+
+class Accept(RegexPattern):
+    def render(self) -> Iterable[str]:
+        yield "(*ACCEPT)"
+
+
+def accept(self) -> Concat:
+    return self + Accept()
+
+
+RegexPattern.accept = accept
+
+x = pattern("something").accept() 
+print(x) # something(*ACCEPT)
+```
+
+Or like this:
+
+```python
+from rgx.entities import RegexPattern, Concat
+from rgx import pattern
+from typing import Iterable
+
+
+class Accept(RegexPattern):
+    def __init__(self, accepted_pattern: RegexPattern):
+        self.accepted_pattern = accepted_pattern
+
+    def render(self) -> Iterable[str]:
+        yield from accepted_pattern.render()
+        yield "(*ACCEPT)"
+
+
+def accept(self) -> Concat:
+    return Accept(self)
+
+RegexPattern.accept = accept
+
+x = pattern("something").accept() # something(*ACCEPT)
+```
+
+### Priority
+
+If your extension has to rely on some priority, you can use `respect_priority` function.    
+Let's say you want to add a `x/y` operation, which does something (wow) and has prority between `a|b` and `ab` — so `a|b/cd` is `a|(b/(cd))`.    
+
+```python
+from rgx.entities import RegexPattern, Concat, Option, AnyRegexPattern, respect_priority, pattern
+from typing import Iterable
+
+class MagicSlash(RegexPattern):
+    priority = (Concat.priority + Option.priority) // 2 # let's take something in the middle
+
+    def __init__(self, left: RegexPattern, right: RegexPattern):
+        self.left = respect_priority(left, self.priority) # you need to wrap all parts of your expression in respect_priority() 
+        self.right = respect_priority(right, self.priority) # ...and pass your expression priority as a second argument
+
+    def render(self) -> Iterable[str]:
+        yield from self.left.render()
+        yield "/"
+        yield from self.right.render()
+
+
+def slash(self, other: AnyRegexPattern) -> MagicSlash: # AnyRegexPattern is either a RegexPattern instance or a Python literal
+    return MagicSlash(self, other) # respect_priority already takes literals in consideration, so no extra actions needed
+
+def rslash(self, other: AnyRegexPattern) -> MagicSlash: # other/self
+    other = pattern(other)
+    return other / self
+
+
+RegexPattern.slash = slash
+RegexPattern.__truediv__ = slash # / operator
+RegexPattern.__rtruediv__ = rslash
+
+
+a = pattern("a")
+b = pattern("b")
+c = pattern("c")
+d = pattern("d")
+
+print(
+    (a | b) / (c + d) # [ab]/cd
+)
+
+print(
+    ((a | b) / c) + d # (?:[ab]/c)d
+)
+
+print(
+    a | (b / c) + d   # a|(?:b/c)d
+)
+
+```
+
 
 ## Common questions
 

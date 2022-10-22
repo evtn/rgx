@@ -1,5 +1,6 @@
+from typing import List
 from rgx import pattern, char_range, reference, named
-from rgx.entities import RegexPattern
+from rgx.entities import CharType, RegexPattern
 import pytest
 
 class TestClass:
@@ -12,23 +13,29 @@ class TestClass:
         assert pattern(["x", "y"]).render_str() == "[xy]"
 
     def test_char_classes(self):
-
-        onetwo_chars = pattern(["1", "2"])
-
-        onetwo_list = ["1", "2"]
+        onetwo_list: List[CharType] = ["1", "2"]
         onetwo_chars = pattern(onetwo_list)
 
-        az_char_range = char_range("a", "z")
+        az_char_range = pattern("a").to("z")
 
         assert az_char_range.render_str() == "[a-z]"
         assert az_char_range.reverse().render_str() == "[^a-z]"
         assert (onetwo_chars | az_char_range).render_str() == "[12a-z]"
         assert (onetwo_list | az_char_range).render_str() == "[12a-z]"
+        assert onetwo_chars.render_str() == "[12]"
+        
+        assert (pattern("1") | pattern("2")).render_str() == "[12]"
+
+        assert pattern("1").to("2").render_str() == "[12]"
+        assert pattern("1").to("3").render_str() == "[123]"
+        assert pattern("1").to("4").render_str() == "[1-4]"
+
+        assert (pattern("1").to("9") | "0").render_str() == "[0-9]"
 
         assert char_range("a").render_str() == "[a-]"
         assert char_range(None, "z").render_str() == "[-z]"
 
-        assert pattern(["-"]).render_str() == "[\\-]"
+        assert pattern(["-"]).render_str() == "\\-" # not a range actually
 
         a = pattern("a")
         assert repr(a) == a.render_str()

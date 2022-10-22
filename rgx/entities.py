@@ -1,27 +1,39 @@
 from __future__ import annotations
-from collections.abc import Iterable, Sequence
+from typing import NoReturn, Optional, Union, overload, Iterable, Sequence, TYPE_CHECKING
 
-from typing import Generator, Optional, Union, overload, List
+if TYPE_CHECKING:
+    from typing import Literal as LiteralType
 
 import itertools
 import re
 
-StrGen = Generator[str, None, None]
+StrGen = Iterable[str]
 CharType = Union[str, "CharRange", "Literal"]
-LiteralPart = Union[tuple, List[CharType], str]
+LiteralPart = Union["tuple[AnyRegexPattern, ...]", "list[CharType]", str]
 AnyRegexPattern = Union[LiteralPart, "RegexPattern"]
 
+OrResult = Union["Option", "Chars", "ReversedChars"]
+
+priority_step = 1000
+
+
 @overload
-def pattern(literal: tuple, escape: bool = True) -> Union[RegexPattern, NonCapturingGroup]:
+def pattern(literal: str, escape: LiteralType[False]) -> UnescapedLiteral:
     ...
 @overload
-def pattern(literal: List[CharType], escape: bool = True) -> Chars:
+def pattern(literal: str, escape: bool = True) -> Literal | Chars:
+    ...
+@overload
+def pattern(literal: tuple[AnyRegexPattern], escape: bool = True) -> Union[RegexPattern, NonCapturingGroup]:
+    ...
+@overload
+def pattern(literal: list[CharType], escape: bool = True) -> Chars:
     ...
 @overload
 def pattern(literal: RegexPattern, escape: bool = True) -> RegexPattern:
     ...
 @overload
-def pattern(literal: str, escape: bool = True) -> Literal:
+def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     ...
 def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     """
@@ -36,6 +48,8 @@ def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     if isinstance(literal, str):
         if not escape:
             return UnescapedLiteral(literal)
+        if len(literal) == 1:
+            return Chars([literal])
         return Literal(literal)
     if isinstance(literal, tuple):
         if len(literal) == 1:
@@ -56,7 +70,7 @@ def respect_priority(contents_: AnyRegexPattern, other_priority: int) -> RegexPa
 
 
 class RegexPattern:
-    priority: int = 999
+    priority: int = 100 * priority_step
     def render(self) -> StrGen:
         """
         Internal method
@@ -111,13 +125,13 @@ class RegexPattern:
         """
         return self + other
 
-    def __or__(self, other: AnyRegexPattern) -> Union[Option, Chars]:
+    def __or__(self, other: AnyRegexPattern) -> OrResult:
         return Option(self, other)
 
-    def __ror__(self, other: AnyRegexPattern) -> Union[Option, Chars]:
-        return Option(other, self)
+    def __ror__(self, other: AnyRegexPattern) -> OrResult:
+        return respect_priority(other, Option.priority) | self
 
-    def option(self, other: AnyRegexPattern) -> Union[Option, Chars]:
+    def option(self, other: AnyRegexPattern) -> OrResult:
         """
         Use to match either one pattern or another.
 
@@ -130,7 +144,15 @@ class RegexPattern:
         """
         return self | other
 
-    def many(self, lazy: bool = False) -> Many:
+    def repeat(self, count: int, lazy: bool = False) -> Range:
+        return Range(self, min_count=count, max_count=count, lazy=lazy)
+
+    def __mul__(self, other: int) -> Range:
+        return self.repeat(other)
+
+    repeat_from = repeat
+
+    def many(self, lazy: bool = False) -> Range:
         """
         Use this for repeating patterns (one or more times)
 
@@ -141,11 +163,17 @@ class RegexPattern:
         x.many(True) # "x+?"
         ```
         """
-        return Many(self, lazy=lazy)
+        result: Range = self.repeat(1, lazy).or_more()
+        return result
 
-    plus = many
+    def plus(self, lazy: bool = False):
+        """alias for .many"""
+        return self.many(lazy)
 
-    def some(self, lazy: bool = False) -> Some:
+    def __pos__(self):
+        return self.many()
+
+    def some(self, lazy: bool = False) -> Range:
         """
         Use this for repeating optional patterns (zero or more times)
 
@@ -156,11 +184,14 @@ class RegexPattern:
         x.some(True) # "x*?"
         ```
         """
-        return Some(self, lazy=lazy)
 
-    star = some
+        return self.repeat(0, lazy).or_more()
 
-    def maybe(self, lazy: bool = False) -> Maybe:
+    def star(self, lazy: bool = False):
+        """alias for .some"""
+        return self.some(lazy)
+
+    def maybe(self, lazy: bool = False) -> Range:
         """
         Use this for optional patterns (zero or one times)
 
@@ -171,9 +202,11 @@ class RegexPattern:
         x.maybe(True) # "x??"
         ```
         """
-        return Maybe(self, lazy=lazy)
+        return self.repeat(1, lazy).or_less()
 
-    optional = maybe
+    def optional(self, lazy: bool = False):
+        """alias for .maybe"""
+        return self.maybe(lazy)
 
     def x_or_less_times(self, count: int, lazy: bool = False) -> Range:
         """
@@ -187,7 +220,7 @@ class RegexPattern:
         x.x_or_less_times(5, True) # "x{,5}?"
         ```
         """
-        return Range(self, max_count=count, lazy=lazy)
+        return self.repeat(count, lazy).or_less()
 
     def x_or_more_times(self, count: int, lazy: bool = False) -> Range:
         """
@@ -201,7 +234,7 @@ class RegexPattern:
         x.x_or_more_times(5, True) # "x{5,}?"
         ```
         """
-        return Range(self, min_count=count, lazy=lazy)
+        return self.repeat(count, lazy).or_more()
 
     def x_times(self, count: int, lazy: bool = False) -> Range:
         """
@@ -215,7 +248,7 @@ class RegexPattern:
         x.x_times(5, True) # "x{5}?"
         ```
         """
-        return Range(self, min_count=count, max_count=count, lazy=lazy)
+        return self.repeat(count, lazy)
 
     def between_x_y_times(self, min_count: int, max_count: int, lazy: bool = False) -> Range:
         """
@@ -229,9 +262,9 @@ class RegexPattern:
         x.between_x_y_times(5, 6, True) # "x{5,6}?"
         ```
         """
-        return Range(self, min_count=min_count, max_count=max_count, lazy=lazy)
+        return self.repeat(min_count, lazy).to(max_count)
 
-    def lookahead(self, other: RegexPattern) -> Concat:
+    def lookahead(self, other: AnyRegexPattern) -> Concat:
         """
         Use this to indicate that given pattern occurs before some another pattern (lookahead).
 
@@ -246,9 +279,11 @@ class RegexPattern:
         """
         return Concat(self, Lookahead(other))
 
-    before = lookahead
+    def before(self, other: AnyRegexPattern) -> Concat:
+        """alias for .lookahead"""
+        return self.lookahead(other)
 
-    def negative_lookahead(self, other) -> Concat:
+    def negative_lookahead(self, other: AnyRegexPattern) -> Concat:
         """
         Use this to indicate that given pattern doesn't occur before some another pattern (negative lookahead).
 
@@ -263,9 +298,11 @@ class RegexPattern:
         """
         return Concat(self, NegativeLookahead(other))
 
-    not_before = negative_lookahead
+    def not_before(self, other: AnyRegexPattern) -> Concat:
+        """alias for .negative_lookahead"""
+        return self.negative_lookahead(other)
 
-    def lookbehind(self, other: RegexPattern) -> Concat:
+    def lookbehind(self, other: AnyRegexPattern) -> Concat:
         """
         Use this to indicate that given pattern occurs after some another pattern (lookbehind).
 
@@ -280,9 +317,11 @@ class RegexPattern:
         """
         return Concat(Lookbehind(other), self)
 
-    after = lookbehind
+    def after(self, other: AnyRegexPattern) -> Concat:
+        """alias for .lookbehind"""
+        return self.lookbehind(other)
 
-    def negative_lookbehind(self, other) -> Concat:
+    def negative_lookbehind(self, other: AnyRegexPattern) -> Concat:
         """
         Use this to indicate that given pattern goes before some another pattern (negative lookbehind).
 
@@ -297,7 +336,9 @@ class RegexPattern:
         """
         return Concat(NegativeLookbehind(other), self)
 
-    not_after = negative_lookbehind
+    def not_after(self, other: AnyRegexPattern) -> Concat:
+        """alias for .negative_lookbehind"""
+        return self.negative_lookbehind(other)
 
     def comment(self, text: str) -> Concat:
         """ leaves a comment in expression (if needed for whatever reason) """
@@ -355,34 +396,159 @@ class NegativeLookbehind(GroupBase):
 class Comment(GroupBase):
     prefix = "?#"
 
+def sort_chartype(seq: Sequence[CharType]) -> Sequence[CharType]:
+    def sorting_func(char: CharType) -> tuple[int, int]:
+        if isinstance(char, Literal):
+            char_num = ord(char.contents)
+            return (char_num, char_num)
+        if isinstance(char, CharRange):
+            return (ord(char.start or chr(0)), ord(char.stop or chr(0x10ffff)))
+        return (ord(char), ord(char))
+
+    return sorted(
+        seq,
+        key=sorting_func
+    )
+
+def merge_chars(contents: Sequence[CharType]) -> Sequence[CharRange]:
+    result: list[CharRange] = []
+    contents = sort_chartype(contents)
+
+    def make_range(part: CharType) -> CharRange:
+        if isinstance(part, str):
+            return CharRange(part, part)
+        if isinstance(part, Literal):
+            return CharRange(part.contents, part.contents)
+        return part
+
+    def merge_parts(last_part: CharRange, next_part: CharType) -> Sequence[CharRange]:
+        next_part = make_range(next_part)
+
+        if ord(last_part.stop or chr(0)) + 1 >= ord(next_part.start or chr(0x10FFFF)):
+            if next_part.stop is None or next_part.stop > (last_part.stop or chr(0)):
+                return [CharRange(last_part.start, next_part.stop)]
+            return [last_part]
+
+        return [last_part, next_part]
+
+    for part in contents:
+        if len(result):
+            merged = merge_parts(result[-1], part)
+            if len(merged) == 1:
+                result[-1] = merged[0]
+            else:
+                result.append(merged[1])
+        else:
+            result.append(make_range(part))
+
+    return result
+
+
 class Chars(RegexPattern):
+    non_special = {".", "[", "|", "~", "*", "(", ")", "+", "$", "&", "?", "#"}
     def __init__(self, contents: Sequence[CharType], is_reversed: bool = False):
-        self.contents = list(contents)
-        self.is_reversed = is_reversed
+        self.contents = list(merge_chars(contents))
 
     def render(self) -> StrGen:
+        if len(self.contents) == 1:
+            contents = self.contents[0]
+            if contents.start and contents.is_single_char():
+                yield from Literal(contents.start).render()
+                return
         yield "["
-        if self.is_reversed:
-            yield "^"
         for char in self.contents:
             if isinstance(char, (Literal, CharRange)):
                 yield from char.render()
+            elif char in Chars.non_special:
+                yield char
+            else:
+                yield re.escape(char)
+        yield "]"
+
+    def to(self, other: str | Literal | Chars) -> Chars:
+        if isinstance(other, str):
+            end = pattern(other)
+        elif isinstance(other, Chars):
+            end = other
+        else:
+            end = other
+
+        start_base = self.contents[0]
+        start: str | None
+
+        if isinstance(start_base, str):
+            start = start_base
+        elif isinstance(start_base, CharRange):
+            start = start_base.start
+        else:
+            start = start_base.contents
+
+        stop_base = end.contents[0]
+        stop: str | None
+        if isinstance(stop_base, str):
+            stop = stop_base
+        elif isinstance(stop_base, CharRange):
+            stop = stop_base.stop
+        else:
+            stop = stop_base.contents
+
+        start_len = len(start) if start else 0
+        stop_len = len(stop) if stop else 0
+
+        if start_len != 1 or stop_len != 1:
+            raise ValueError(f"rgx.Chars.to can be used only on literals of length 1, got [{start_len} chars].to([{stop_len} chars])")
+
+        return char_range(start, stop)
+
+    def reverse(self) -> ReversedChars:
+        return ReversedChars(self.contents)
+
+    @overload
+    def __or__(self, other: Chars | list[CharType]) -> Chars:
+        ...
+
+    @overload
+    def __or__(self, other: AnyRegexPattern) -> Option | Chars:
+        ...
+
+    def __or__(self, other: AnyRegexPattern) -> Union[Option, Chars]:
+        other = respect_priority(other, Option.priority)
+        if isinstance(other, Chars):
+            return Chars([*self.contents, *other.contents])
+        return Option(self, other)
+
+class ReversedChars(RegexPattern):
+    def __init__(self, contents: Sequence[CharType]):
+        self.contents = list(merge_chars(contents))
+
+    def render(self) -> StrGen:
+        yield "["
+        yield "^"    
+        for char in self.contents:
+            if isinstance(char, (Literal, CharRange)):
+                yield from char.render()
+            elif char in Chars.non_special:
+                yield char
             else:
                 yield re.escape(char)
         yield "]"
 
     def reverse(self) -> Chars:
-        return Chars(self.contents, not self.is_reversed)
+        return Chars(self.contents)
 
-    def __or__(self, other: AnyRegexPattern) -> Union[Option, Chars]:
+    @overload
+    def __or__(self, other: ReversedChars) -> ReversedChars:
+        ...
+
+    @overload
+    def __or__(self, other: AnyRegexPattern) -> Option | ReversedChars:
+        ...
+
+    def __or__(self, other: AnyRegexPattern) -> Union[Option, ReversedChars]:
         other = respect_priority(other, Option.priority)
-        if isinstance(other, Chars) and self.is_reversed == other.is_reversed:
-            return Chars([*self.contents, *other.contents], self.is_reversed)
+        if isinstance(other, ReversedChars):
+            return ReversedChars([*self.contents, *other.contents])
         return Option(self, other)
-
-    def __ror__(self, other: AnyRegexPattern) -> Union[Option, Chars]:
-        other = respect_priority(other, Option.priority)
-        return other | self
 
 class CharRange:
     def __init__(self, start: Optional[str], stop: Optional[str]):
@@ -394,10 +560,34 @@ class CharRange:
     def render(self) -> StrGen:
         if self.start:
             yield re.escape(self.start)
-        yield "-"
+            if self.start == self.stop:
+                return
+        if self.start and self.stop:
+            diff = ord(self.stop) - ord(self.start)
+            if diff == 2:
+                yield chr(ord(self.stop) - 1)
+            elif diff > 2:
+                yield "-"
+        else:
+            yield "-"
         if self.stop:
             yield re.escape(self.stop)
 
+    def is_single_char(self) -> bool:
+        return self.start is not None and self.start == self.stop
+
+@overload
+def char_range(start: Optional[str], stop: str) -> Chars:
+    ...
+@overload
+def char_range(start: str, stop: None = None) -> Chars:
+    ...
+@overload
+def char_range(start: None = None, stop: None = None) -> NoReturn:
+    ...
+@overload
+def char_range(start: Optional[str], stop: Optional[str]) -> Chars:
+    ...
 
 def char_range(start: Optional[str] = None, stop: Optional[str] = None) -> Chars:
     """
@@ -414,7 +604,7 @@ def char_range(start: Optional[str] = None, stop: Optional[str] = None) -> Chars
 
 
 class Concat(RegexPattern):
-    priority = 2
+    priority = 2 * priority_step
     def __init__(self, *contents: AnyRegexPattern) -> None:
         self.contents = [respect_priority(part, self.priority) for part in contents]
 
@@ -427,7 +617,7 @@ class Concat(RegexPattern):
 
 
 class Option(RegexPattern):
-    priority = 0
+    priority = 0 * priority_step
     def __init__(self, *alternatives: AnyRegexPattern):
         self.alternatives = [respect_priority(alternative, self.priority) for alternative in alternatives]
 
@@ -465,65 +655,130 @@ class GlobalFlags(GroupBase):
     def __init__(self, contents: str):
         self.contents = Literal(contents)
 
-class Quantifier(RegexPattern):
-    priority = 3
-    quantifier: str
-    def __init__(self, *contents: AnyRegexPattern, lazy: bool = False) -> None:
-        self.contents = respect_priority(contents, self.priority + 1)
-        self.lazy = lazy
 
-    def render(self) -> StrGen:
-        yield from self.contents.render()
-        yield self.quantifier
-        if self.lazy:
-            yield "?"
-
-class Maybe(Quantifier):
-    quantifier = "?"
-
-class Some(Quantifier):
-    quantifier = "*"
-    
-class Many(Quantifier):
-    quantifier = "+"
-
-class Range(Quantifier):
+class Range(RegexPattern):
+    priority: int = 3 * priority_step
     def __init__(self, *contents: AnyRegexPattern, min_count: int = 0, max_count: Optional[int] = None, lazy: bool = False) -> None:
         self.contents = respect_priority(contents, self.priority + 1)
+        self.min_count = min_count
+        self.max_count = max_count
         self.lazy = lazy
+
+        if self.max_count is not None and self.min_count > self.max_count:
+            self.min_count, self.max_count = self.max_count, self.min_count
+
+        if self.min_count < 0:
+            raise ValueError("Quantifier lower bound cannot be less than 0")
+
+        if self.max_count is not None and self.max_count < 0:
+            raise ValueError("Quantifier upper bound cannot be less than 0")
         
         if max_count is not None and min_count > max_count:
             min_count, max_count = max_count, min_count
-        if min_count == max_count:
-            self.lazy = False # lazy doesn't make any sense with min_count == max_count
 
-        # specific count optimizations
-        if max_count is None:
-            if not min_count:
-                self.quantifier = "*"
+    def or_more(self) -> Range:
+        return Range(self.contents, min_count=self.min_count, lazy=self.lazy)
+
+    def __pos__(self) -> Range:
+        return self.or_more()
+
+    def or_less(self) -> Range:
+        return Range(self.contents, min_count=0, max_count=self.max_count, lazy=self.lazy)
+
+    def __neg__(self) -> Range:
+        return self.or_less()
+
+    def to(self, count: int) -> Range:
+        return Range(self.contents, min_count=self.min_count, max_count=count, lazy=self.lazy)
+
+    def __rshift__(self, count: int) -> Range:
+        return self.to(count)
+
+    def render_quantifier(self) -> StrGen:
+        if self.max_count is None:
+            if not self.min_count:
+                yield "*"
                 return
-            elif min_count == 1:
-                self.quantifier = "+"
+            elif self.min_count == 1:
+                yield "+"
                 return
 
-        if max_count == 1:
-            if not min_count:
-                self.quantifier = "?"
+        elif self.max_count == 1:
+            if not self.min_count:
+                yield "?"
                 return
-            elif min_count == 1:
-                self.quantifier = ""
-                self.lazy = False
+            elif self.min_count == 1:
                 return
 
+        yield "{"
 
-        if min_count == max_count:
-            self.quantifier = f"{{{min_count}}}"
-        elif not min_count:
-            self.quantifier = f"{{,{max_count}}}"
-        elif not max_count:
-            self.quantifier = f"{{{min_count},}}"
-        else:
-            self.quantifier = f"{{{min_count},{max_count}}}"
+        if self.min_count:
+            yield str(self.min_count)
+
+        if self.min_count == self.max_count:
+            yield "}"
+            return
+
+        yield ","
+
+        if self.max_count:
+            yield str(self.max_count)
+
+        yield "}"
+
+
+    def render(self) -> StrGen:
+        yield from self.contents.render()
+
+        if self.min_count == self.max_count == 1:
+            return
+
+        yield from self.render_quantifier()
+
+        if self.lazy and self.min_count != self.max_count:
+            yield "?"
+
+    def many(self, lazy: bool = False):
+        return Range(self.contents, min_count=self.min_count, max_count=None, lazy=self.lazy and lazy)
+
+    def some(self, lazy: bool = False):
+        return Range(self.contents, min_count=0, lazy=self.lazy and lazy)
+
+    def maybe(self, lazy: bool = False):
+        if self.min_count in {0, 1}:
+            return Range(self.contents, min_count=0, max_count=self.max_count, lazy=self.lazy and lazy)
+        return Range(self, min_count=0, max_count=1, lazy=lazy)
+
+    def x_times(self, count: int, lazy: bool = False) -> Range:
+        if self.min_count in {0, 1} or self.max_count is None:
+            return Range(
+                self.contents, 
+                min_count=self.min_count * count, 
+                max_count=self.max_count * count if self.max_count is not None else None, 
+                lazy=self.lazy and lazy
+            )
+        return Range(self, min_count=count, max_count=count, lazy=lazy)
+
+    def x_or_more_times(self, count: int, lazy: bool = False) -> Range:
+        if self.min_count in {0, 1} or self.max_count is None:
+            return Range(
+                self.contents, 
+                min_count=self.min_count * count, 
+                max_count=None, 
+                lazy=self.lazy and lazy
+            )
+        return Range(self, min_count=count, lazy=lazy)
+
+    def x_or_less_times(self, count: int, lazy: bool = False) -> Range:
+        if self.max_count is None:
+            return self.contents.some()
+
+        return Range(
+            self.contents,
+            min_count=0,
+            max_count=self.max_count * count
+        )
+
 
 class NamedPattern(RegexPattern):
     """
@@ -599,7 +854,10 @@ class Literal(RegexPattern):
     def __init__(self, contents: str) -> None:
         self.contents: str = contents
         if len(self.contents) != 1:
-            self.priority = 2
+            self.priority = 2 * priority_step
+
+    def to(self, other: str | Literal | Chars) -> Chars:
+        return Chars([self]).to(other)
 
     def render(self) -> StrGen:
         yield re.escape(self.contents)
@@ -614,27 +872,6 @@ class UnescapedLiteral(Literal):
 
     def render(self) -> StrGen:
         yield str(self.contents)
-
-
-class Meta:
-    """
-    A collection of special char sequences in form of UnescapedLiteral
-    """
-    WORD_CHAR = UnescapedLiteral(r"\w")
-    NON_WORD_CHAR = UnescapedLiteral(r"\W")
-    DIGIT = UnescapedLiteral(r"\d")
-    NON_DIGIT = UnescapedLiteral(r"\D")
-    WHITESPACE = UnescapedLiteral(r"\s")
-    NON_WHITESPACE = UnescapedLiteral(r"\S")
-    WORD_BOUNDARY = UnescapedLiteral(r"\b")
-    NON_WORD_BOUNDARY = UnescapedLiteral(r"\B")
-    ANY = UnescapedLiteral(".")
-    NEWLINE = UnescapedLiteral(r"\n")
-    CARRIAGE_RETURN = UnescapedLiteral(r"\r")
-    TAB = UnescapedLiteral(r"\t")
-    NULL_CHAR = UnescapedLiteral(r"\0")
-    STRING_START = UnescapedLiteral("^")
-    STRING_END = UnescapedLiteral("$")
 
 
 def group_reference(group: int) -> UnescapedLiteral:
