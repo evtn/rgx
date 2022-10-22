@@ -70,7 +70,7 @@ def respect_priority(contents_: AnyRegexPattern, other_priority: int) -> RegexPa
 
 
 class RegexPattern:
-    priority: int = : int * priority_step
+    priority: int = 100 * priority_step
     def render(self) -> StrGen:
         """
         Internal method
@@ -85,7 +85,7 @@ class RegexPattern:
         Renders given pattern into a string with specified global flags.
 
         """
-        contents: StrGen
+        contents: Iterable[str]
         if flags:
             contents = itertools.chain(GlobalFlags(flags).render(), self.render())
         else:
@@ -657,7 +657,7 @@ class GlobalFlags(GroupBase):
 
 
 class Range(RegexPattern):
-    priority: int = : int * priority_step
+    priority: int = 3 * priority_step
     def __init__(self, *contents: AnyRegexPattern, min_count: int = 0, max_count: Optional[int] = None, lazy: bool = False) -> None:
         self.contents = respect_priority(contents, self.priority + 1)
         self.min_count = min_count
