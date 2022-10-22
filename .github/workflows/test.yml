@@ -7,9 +7,11 @@ on:
       - lord
     paths:
       - "**.py"
+      - "**.yml"
   pull_request:
     paths:
       - "**.py"
+      - "**.yml"
 jobs:
   check_types:
     runs-on: ubuntu-latest
