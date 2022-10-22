@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import NoReturn, Optional, Union, overload, List, Iterable, Sequence, TYPE_CHECKING
+from typing import NoReturn, Optional, Union, overload, Iterable, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Literal as LiteralType
@@ -9,7 +9,7 @@ import re
 
 StrGen = Iterable[str]
 CharType = Union[str, "CharRange", "Literal"]
-LiteralPart = Union[tuple["AnyRegexPattern", ...], List[CharType], str]
+LiteralPart = Union["tuple[AnyRegexPattern, ...]", "list[CharType]", str]
 AnyRegexPattern = Union[LiteralPart, "RegexPattern"]
 
 OrResult = Union["Option", "Chars", "ReversedChars"]
@@ -27,7 +27,7 @@ def pattern(literal: str, escape: bool = True) -> Literal | Chars:
 def pattern(literal: tuple[AnyRegexPattern], escape: bool = True) -> Union[RegexPattern, NonCapturingGroup]:
     ...
 @overload
-def pattern(literal: List[CharType], escape: bool = True) -> Chars:
+def pattern(literal: list[CharType], escape: bool = True) -> Chars:
     ...
 @overload
 def pattern(literal: RegexPattern, escape: bool = True) -> RegexPattern:
@@ -504,7 +504,7 @@ class Chars(RegexPattern):
         return ReversedChars(self.contents)
 
     @overload
-    def __or__(self, other: Chars | List[CharType]) -> Chars:
+    def __or__(self, other: Chars | list[CharType]) -> Chars:
         ...
 
     @overload
