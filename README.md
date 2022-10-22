@@ -206,7 +206,7 @@ a.some()                         # a*
 +-(a * 38)                       # a*
 ```
 Here's what's going on:    
-`pattern.repeat(count, lazy)` returns a `{count, count}` `Range` object
+`pattern.repeat(count, lazy)` returns a `{count, count}` `Range` object    
 `pattern * count` is the same as `pattern.repeat(count, False)`
 
 `Range` implements `or_more`, `or_less` and `to` methods:
