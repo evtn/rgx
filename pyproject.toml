@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "rgx"
-version = "1.2.0"
+version = "1.3.0"
 description = "Typed, simple and readable regexp generation"
-authors = ["Dmitry Gritsenko <k01419q45@ya.ru>"]
+authors = ["Dmitry Gritsenko <rgx@evtn.ru>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/courage-tci/gekkota"
-homepage = "https://github.com/courage-tci/gekkota"
+repository = "https://github.com/courage-tci/rgx"
+homepage = "https://github.com/courage-tci/rgx"
 keywords = ["regex", "regexp", "regular expressions"]
 
 [tool.poetry.dependencies]
