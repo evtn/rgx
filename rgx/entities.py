@@ -874,64 +874,6 @@ class UnescapedLiteral(Literal):
         yield str(self.contents)
 
 
-class Meta:
-    """
-    A collection of special char sequences in form of UnescapedLiteral
-    """
-    WORD_CHAR = UnescapedLiteral(r"\w")
-    NON_WORD_CHAR = UnescapedLiteral(r"\W")
-    DIGIT = UnescapedLiteral(r"\d")
-    NON_DIGIT = UnescapedLiteral(r"\D")
-    WHITESPACE = UnescapedLiteral(r"\s")
-    NON_WHITESPACE = UnescapedLiteral(r"\S")
-    WORD_BOUNDARY = UnescapedLiteral(r"\b")
-    NON_WORD_BOUNDARY = UnescapedLiteral(r"\B")
-    ANY = UnescapedLiteral(".")
-    NEWLINE = UnescapedLiteral(r"\n")
-    CARRIAGE_RETURN = UnescapedLiteral(r"\r")
-    TAB = UnescapedLiteral(r"\t")
-    NULL_CHAR = UnescapedLiteral(r"\0")
-    STRING_START = UnescapedLiteral("^")
-    STRING_END = UnescapedLiteral("$")
-
-    @staticmethod
-    def CHAR_ESCAPE(char_number: int):
-        try:
-            chr(char_number)
-        except ValueError:
-            raise ValueError(f"Invalid character: {char_number}")
-        prefix = ["x", "u", "U"][(char_number > 255) + (char_number > 65535)]
-        length = {"x": 2, "u": 4, "U": 8}[prefix]
-        return UnescapedLiteral(f"\\{prefix}{char_number:0{length}x}")
-
-
-class UnicodeMeta:
-    @staticmethod
-    def NAMED_PROPERTY(name: str, value: str) -> UnescapedLiteral:
-        return UnescapedLiteral(fr"\P{{{name}={value}}}")
-
-    @staticmethod
-    def NAMED_PROPERTY_INVERSE(name: str, value: str) -> UnescapedLiteral:
-        return UnescapedLiteral(fr"\p{{{name}={value}}}")
-
-    @staticmethod
-    def PROPERTY(value: str) -> UnescapedLiteral:
-        return UnescapedLiteral(fr"\p{{{value}}}")
-
-    @staticmethod
-    def PROPERTY_INVERSE(value: str) -> UnescapedLiteral:
-        return UnescapedLiteral(fr"\P{{{value}}}")
-
-    LETTER = PROPERTY("L")
-    NON_LETTER = PROPERTY_INVERSE("L")
-
-    WHITESPACE = PROPERTY("Z")
-    NON_WHITESPACE = PROPERTY_INVERSE("Z")
-
-    DIGIT = PROPERTY("Nd")
-    NON_DIGIT = PROPERTY("Nd")
-
-
 def group_reference(group: int) -> UnescapedLiteral:
     """
     

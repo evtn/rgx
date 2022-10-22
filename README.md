@@ -458,7 +458,7 @@ print(meta.CHAR_ESCAPE(320000)) # \U0004e200
 
 ### Unicode meta
 
-`rgx.unicode_meta` (aliased as `rgx.umeta`) is a collection of functions and constants, mostly for `\p` and `\P` usage:
+`rgx.unicode_meta` is a collection of functions and constants, mostly for `\p` and `\P` usage:
 
 Functions:    
 - `unicode_meta.PROPERTY(value: str)` renders into `\p{value}` (any character with property specified by value, e.g. `PROPERTY("Ll") -> \p{Ll}`)
