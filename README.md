@@ -179,7 +179,7 @@ a * 5                            # a{5}, multiplication is an alias for .repeat
 a.repeat(5).or_more()            # a{5,}
 a.repeat(5).or_less()            # a{,5}
 
-a.repeat_from(4).to(5)           # a{4, 5}  [.repeat_from is just an alias]
+a.repeat_from(4).to(5)           # a{4, 5}, .repeat_from is just an alias for .repeat
 # or
 a.repeat(4) >> 5                 # a{4, 5}
 
@@ -428,21 +428,21 @@ x.capture() # (x)
 `rgx.meta` is a collection of different meta-sequences and anchors:
 
 ```python
-WORD_CHAR = UnescapedLiteral(r"\w")
-NON_WORD_CHAR = UnescapedLiteral(r"\W")
-DIGIT = UnescapedLiteral(r"\d")
-NON_DIGIT = UnescapedLiteral(r"\D")
-WHITESPACE = UnescapedLiteral(r"\s")
-NON_WHITESPACE = UnescapedLiteral(r"\S")
-WORD_BOUNDARY = UnescapedLiteral(r"\b")
-NON_WORD_BOUNDARY = UnescapedLiteral(r"\B")
-ANY = UnescapedLiteral(".")
-NEWLINE = UnescapedLiteral(r"\n")
-CARRIAGE_RETURN = UnescapedLiteral(r"\r")
-TAB = UnescapedLiteral(r"\t")
-NULL_CHAR = UnescapedLiteral(r"\0")
-STRING_START = UnescapedLiteral("^")
-STRING_END = UnescapedLiteral("$")
+meta.WORD_CHAR = UnescapedLiteral(r"\w")
+meta.NON_WORD_CHAR = UnescapedLiteral(r"\W")
+meta.DIGIT = UnescapedLiteral(r"\d")
+meta.NON_DIGIT = UnescapedLiteral(r"\D")
+meta.WHITESPACE = UnescapedLiteral(r"\s")
+meta.NON_WHITESPACE = UnescapedLiteral(r"\S")
+meta.WORD_BOUNDARY = UnescapedLiteral(r"\b")
+meta.NON_WORD_BOUNDARY = UnescapedLiteral(r"\B")
+meta.ANY = UnescapedLiteral(".")
+meta.NEWLINE = UnescapedLiteral(r"\n")
+meta.CARRIAGE_RETURN = UnescapedLiteral(r"\r")
+meta.TAB = UnescapedLiteral(r"\t")
+meta.NULL_CHAR = UnescapedLiteral(r"\0")
+meta.STRING_START = UnescapedLiteral("^")
+meta.STRING_END = UnescapedLiteral("$")
 ```
 
 Also `rgx.meta.CHAR_ESCAPE(char_number: int)` is available:
@@ -461,22 +461,24 @@ print(meta.CHAR_ESCAPE(320000)) # \U0004e200
 `rgx.unicode_meta` is a collection of functions and constants, mostly for `\p` and `\P` usage:
 
 Functions:    
-- `unicode_meta.PROPERTY(value: str)` renders into `\p{value}` (any character with property specified by value, e.g. `PROPERTY("Ll") -> \p{Ll}`)
-- `unicode_meta.PROPERTY_INVERSE(value: str)` - matches all characters *not* matched by corresponding `PROPERTY` (`\P{value}`)
+```python
+unicode_meta.PROPERTY(value: str) # renders into `\p{value}` (any character with property specified by value, e.g. `PROPERTY("Ll") -> \p{Ll}`)
+unicode_meta.PROPERTY_INVERSE(value: str) # matches all characters *not* matched by corresponding `PROPERTY` (`\P{value}`)
 
-- `unicode_meta.NAMED_PROPERTY(name: str, value: str)` - renders into `\p{name=value}` and matches any character which property `name` equals `value`
-- `unicode_meta.NAMED_PROPERTY_INVERSE(name: str, value: str)` - same, but inverted (`\P{name=value}`)
-
+unicode_meta.NAMED_PROPERTY(name: str, value: str) # renders into `\p{name=value}` and matches any character which property `name` equals `value`
+unicode_meta.NAMED_PROPERTY_INVERSE(name: str, value: str) # same, but inverted (`\P{name=value}`)
+```
 Constants:    
-- `LETTER = PROPERTY("L")`
-- `NON_LETTER = PROPERTY_INVERSE("L")`
+```python
+unicode_meta.LETTER = PROPERTY("L")
+unicode_meta.NON_LETTER = PROPERTY_INVERSE("L")
 
-- `WHITESPACE = PROPERTY("Z")`
-- `NON_WHITESPACE = PROPERTY_INVERSE("Z")`
+unicode_meta.WHITESPACE = PROPERTY("Z")
+unicode_meta.NON_WHITESPACE = PROPERTY_INVERSE("Z")
 
-- `DIGIT = PROPERTY("Nd")`
-- `NON_DIGIT = PROPERTY("Nd")`
-
+unicode_meta.DIGIT = PROPERTY("Nd")
+unicode_meta.NON_DIGIT = PROPERTY("Nd")
+```
 ## Extending
 
 You can extend generation by subclassing one of the classes of `rgx.entities` module.    
