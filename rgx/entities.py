@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import NoReturn, Optional, Union, overload, Iterable, Sequence, TYPE_CHECKING
+from typing import NoReturn, Optional, Tuple, Union, overload, Iterable, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Literal as LiteralType
@@ -24,13 +24,10 @@ def pattern(literal: str, escape: LiteralType[False]) -> UnescapedLiteral:
 def pattern(literal: str, escape: bool = True) -> Literal | Chars:
     ...
 @overload
-def pattern(literal: tuple[AnyRegexPattern], escape: bool = True) -> Union[RegexPattern, NonCapturingGroup]:
+def pattern(literal: tuple[AnyRegexPattern, ...], escape: bool = True) -> RegexPattern | NonCapturingGroup:
     ...
 @overload
 def pattern(literal: list[CharType], escape: bool = True) -> Chars:
-    ...
-@overload
-def pattern(literal: RegexPattern, escape: bool = True) -> RegexPattern:
     ...
 @overload
 def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
@@ -396,36 +393,29 @@ class NegativeLookbehind(GroupBase):
 class Comment(GroupBase):
     prefix = "?#"
 
-def sort_chartype(seq: Sequence[CharType]) -> Sequence[CharType]:
-    def sorting_func(char: CharType) -> tuple[int, int]:
-        if isinstance(char, Literal):
-            char_num = ord(char.contents)
-            return (char_num, char_num)
-        if isinstance(char, CharRange):
-            return (ord(char.start or chr(0)), ord(char.stop or chr(0x10ffff)))
-        return (ord(char), ord(char))
+def sort_chartype(seq: Sequence[CharRange]) -> Sequence[CharRange]:
+    def sorting_func(char: CharRange) -> tuple[int, int]:
+        return char.start, char.stop
 
     return sorted(
         seq,
         key=sorting_func
     )
 
+def make_range(part: CharType) -> CharRange:
+    if isinstance(part, str):
+        return CharRange(part, part)
+    if isinstance(part, Literal):
+        return CharRange(part.contents, part.contents)
+    return part
+
 def merge_chars(contents: Sequence[CharType]) -> Sequence[CharRange]:
     result: list[CharRange] = []
-    contents = sort_chartype(contents)
+    contents = sort_chartype([make_range(part) for part in contents])
 
-    def make_range(part: CharType) -> CharRange:
-        if isinstance(part, str):
-            return CharRange(part, part)
-        if isinstance(part, Literal):
-            return CharRange(part.contents, part.contents)
-        return part
-
-    def merge_parts(last_part: CharRange, next_part: CharType) -> Sequence[CharRange]:
-        next_part = make_range(next_part)
-
-        if ord(last_part.stop or chr(0)) + 1 >= ord(next_part.start or chr(0x10FFFF)):
-            if next_part.stop is None or next_part.stop > (last_part.stop or chr(0)):
+    def merge_parts(last_part: CharRange, next_part: CharRange) -> Sequence[CharRange]:
+        if last_part.stop + 1 >= next_part.start:
+            if next_part.stop > last_part.stop:
                 return [CharRange(last_part.start, next_part.stop)]
             return [last_part]
 
@@ -433,16 +423,13 @@ def merge_chars(contents: Sequence[CharType]) -> Sequence[CharRange]:
 
     for part in contents:
         if len(result):
-            merged = merge_parts(result[-1], part)
-            if len(merged) == 1:
-                result[-1] = merged[0]
-            else:
-                result.append(merged[1])
+            result[-1:] = merge_parts(result[-1], part)
         else:
-            result.append(make_range(part))
+            result.append(part)
 
     return result
 
+Bounds = Tuple[int, int]
 
 class Chars(RegexPattern):
     non_special = {".", "[", "|", "~", "*", "(", ")", "+", "$", "&", "?", "#"}
@@ -452,17 +439,12 @@ class Chars(RegexPattern):
     def render(self) -> StrGen:
         if len(self.contents) == 1:
             contents = self.contents[0]
-            if contents.start and contents.is_single_char():
-                yield from Literal(contents.start).render()
+            if contents.is_single_char():
+                yield from contents.render_literal()
                 return
         yield "["
         for char in self.contents:
-            if isinstance(char, (Literal, CharRange)):
-                yield from char.render()
-            elif char in Chars.non_special:
-                yield char
-            else:
-                yield re.escape(char)
+            yield from char.render()
         yield "]"
 
     def to(self, other: str | Literal | Chars) -> Chars:
@@ -473,30 +455,14 @@ class Chars(RegexPattern):
         else:
             end = other
 
-        start_base = self.contents[0]
-        start: str | None
-
-        if isinstance(start_base, str):
-            start = start_base
-        elif isinstance(start_base, CharRange):
-            start = start_base.start
-        else:
-            start = start_base.contents
+        start: int = self.contents[0].start
 
         stop_base = end.contents[0]
-        stop: str | None
+        stop: int
         if isinstance(stop_base, str):
-            stop = stop_base
-        elif isinstance(stop_base, CharRange):
-            stop = stop_base.stop
+            stop = ord(stop_base)
         else:
-            stop = stop_base.contents
-
-        start_len = len(start) if start else 0
-        stop_len = len(stop) if stop else 0
-
-        if start_len != 1 or stop_len != 1:
-            raise ValueError(f"rgx.Chars.to can be used only on literals of length 1, got [{start_len} chars].to([{stop_len} chars])")
+            stop = stop_base.stop
 
         return char_range(start, stop)
 
@@ -516,6 +482,15 @@ class Chars(RegexPattern):
         if isinstance(other, Chars):
             return Chars([*self.contents, *other.contents])
         return Option(self, other)
+
+    def exclude(self, chars: AnyRegexPattern) -> Chars:
+        chars = pattern(chars)
+        if not isinstance(chars, Chars):
+            raise ValueError("Can't exclude non-Chars pattern, don't really know how...")
+        result = []
+        for part in self.contents:
+            result.extend(part.exclude(chars))
+        return Chars(result)
 
 class ReversedChars(RegexPattern):
     def __init__(self, contents: Sequence[CharType]):
@@ -551,45 +526,131 @@ class ReversedChars(RegexPattern):
         return Option(self, other)
 
 class CharRange:
-    def __init__(self, start: Optional[str], stop: Optional[str]):
-        self.start = start
-        self.stop = stop
+    min_char = 0
+    max_char = 0x10FFFF
+
+    def __init__(self, start: Optional[str | int], stop: Optional[str | int]):
+        meta = None
+        if isinstance(start, str):
+            if len(start) > 1:
+                meta = start
+                start = -1
+            else:
+                start = ord(start)
+        if isinstance(stop, str):
+            if len(stop) > 1:
+                stop = -1
+            else:
+                stop = ord(stop)
+
+        self.start = start or CharRange.min_char
+        self.stop = stop or CharRange.max_char
+        self.meta = meta
+
         if not (start or stop):
             raise ValueError("Cannot create a character range with no data. Use rgx.meta.ANY instead")
 
+    @staticmethod
+    def render_char(char: int) -> str:
+        return re.escape(chr(char))
+
     def render(self) -> StrGen:
+        if self.meta:
+            yield self.meta
+            return
+
+        diff = self.stop - self.start
+        
         if self.start:
-            yield re.escape(self.start)
-            if self.start == self.stop:
-                return
-        if self.start and self.stop:
-            diff = ord(self.stop) - ord(self.start)
-            if diff == 2:
-                yield chr(ord(self.stop) - 1)
-            elif diff > 2:
-                yield "-"
-        else:
+            yield self.render_char(self.start)
+        
+        if not diff:
+            return # one char
+        
+        if diff == 2:
+            yield chr(self.stop - 1) # render 012 instead of 0-2
+        
+        if diff > 2:
             yield "-"
-        if self.stop:
-            yield re.escape(self.stop)
+
+        if self.stop != CharRange.max_char:
+            yield self.render_char(self.stop)
+
+    def render_literal(self) -> StrGen:
+        if self.meta:
+            yield self.meta
+            return
+        yield from Literal(chr(self.start)).render()
+
+    @staticmethod
+    def exclude_bounds(bounds: Bounds, exclude: Bounds) -> list[Bounds]:
+        result: list[Bounds] = []
+        self_range = range(bounds[0], bounds[1] + 1)
+
+        if exclude[0] - 1 in self_range:
+            result.append(
+                (bounds[0], exclude[0] - 1)
+            )
+        if exclude[1] + 1 in self_range:
+            result.append(
+                (exclude[1] + 1, bounds[1])
+            )
+        return result
+
+    def exclude(self, chars: Chars) -> list[CharRange]:
+        if self.meta:
+            raise ValueError(f"Cannot exclude chars '{chars}' from meta-sequence '{self.meta}'")
+
+        result: list[Bounds] = [(self.start, self.stop)]
+        temp_result: list[Bounds] = []
+        cut_start = 0
+        last_cut_start = 0
+        
+        for char_part in chars.contents:
+            if char_part.meta:
+                raise ValueError(f"Cannot exclude meta-sequence '{self.meta}' from chars '[{self}]'")
+            exclude = (char_part.start, char_part.stop)
+            for i, bounds in enumerate(result[cut_start:], start=cut_start):
+                if exclude[1] < bounds[0]:
+                    temp_result.extend(result[i:])
+                    break
+                
+                if exclude[0] > bounds[1]:
+                    temp_result.append(result[i])
+                    continue
+
+                temp_result.extend(
+                    self.exclude_bounds(bounds, exclude)
+                )
+
+            last_cut_start = cut_start
+            cut_start = len(temp_result) - 1
+
+            result[last_cut_start:] = temp_result
+            temp_result = []
+
+        return [CharRange(*x) for x in result]
 
     def is_single_char(self) -> bool:
-        return self.start is not None and self.start == self.stop
+        return self.start == self.stop
+
+    def __repr__(self):
+        return "".join(self.render())
 
 @overload
-def char_range(start: Optional[str], stop: str) -> Chars:
+def char_range(start: Optional[str | int], stop: str | int) -> Chars:
     ...
 @overload
-def char_range(start: str, stop: None = None) -> Chars:
+def char_range(start: str | int, stop: None = None) -> Chars:
     ...
 @overload
 def char_range(start: None = None, stop: None = None) -> NoReturn:
     ...
 @overload
-def char_range(start: Optional[str], stop: Optional[str]) -> Chars:
+def char_range(start: Optional[str | int], stop: Optional[str | int]) -> Chars:
     ...
 
-def char_range(start: Optional[str] = None, stop: Optional[str] = None) -> Chars:
+def char_range(start: Optional[str | int] = None, stop: Optional[str | int] = None) -> Chars:
     """
     
     Use this for character ranges (e.g. `[a-z]`)
