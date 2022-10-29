@@ -18,24 +18,20 @@ That's it.
 ### Hello, regex world
 
 ```python
-import rgx
+from rgx import pattern, meta
 import re
 
-word = rgx.meta.WORD_CHAR.many().capture() # (\w+), a capturing group
-comma = rgx.pattern(",").maybe()
+separator = meta.WHITESPACE.some() + (meta.WHITESPACE | ",") + meta.WHITESPACE.some()
 
-regex = rgx.pattern((
+# matches "hello world", "hello, world", "hello            world", "hello,world", "hello ,  world"
+hello_world = pattern((
     "hello",
-    comma,
-    rgx.meta.WHITESPACE,
-    (
-        word + rgx.meta.WHITESPACE
-    ).maybe(),
+    separator,
     "world"
-)) # (?:hello,?\s(?:(\w+)\s)?world)
+)) # (?:hello(?:\s)*(?:\s|,)(?:\s)*world)
 
 re.compile(
-    regex.render_str("i") # global flag (case-insensitive)
+    hello_world.render_str("i") # global flag (case-insensitive)
 )
 
 ```
@@ -45,10 +41,10 @@ re.compile(
 this regex will match valid Python integer literals:
 
 ```python
-import rgx
+from rgx import pattern
 import re
 
-nonzero = rgx.pattern("1").to("9") # [1-9]
+nonzero = pattern("1").to("9") # [1-9]
 zero = "0"
 digit = zero | nonzero # [0-9]
 integer = zero | (nonzero + digit.some()) # 0|[1-9][0-9]*
@@ -60,11 +56,11 @@ int_regex = re.compile(str(integer))
 ...or this one:
 
 ```python
-import rgx
+from rgx import pattern, meta
 import re
 
-nonzero = rgx.pattern("1").to("9") # [1-9]
-digit = rgx.meta.DIGIT # \d
+nonzero = pattern("1").to("9") # [1-9]
+digit = meta.DIGIT # \d
 integer = digit | (nonzero + digit.some()) # \d|[1-9]\d*
 
 int_regex = re.compile(str(integer))
@@ -91,34 +87,34 @@ Most operations with pattern objects support using Python literals on one side, 
 
 ```python
 
-import rgx
+from rgx import pattern
 
-x = rgx.pattern("one")
-y = rgx.pattern("two")
-pattern = x | y
+x = pattern("one")
+y = pattern("two")
+p = x | y
 
-rendered_with_str = str(pattern) # "one|two"
-rendered_with_method = pattern.render_str() # "one|two"
-rendered_with_method_flags = pattern.render_str("im") # (?im)one|two
+rendered_with_str = str(p) # "one|two"
+rendered_with_method = p.render_str() # "one|two"
+rendered_with_method_flags = p.render_str("im") # (?im)one|two
 ```    
 
 ### Capturing Groups
 
 ```python
-import rgx
+from rgx import pattern, reference, named
 
-x = rgx.pattern("x")
+x = pattern("x")
 
 print(x.capture()) # (x)
 
-print(rgx.reference(1)) # \1
+print(reference(1)) # \1
 
 
 named_x = x.named("some_x") # x.named(name: str)
 
 print(named_x) # (?P<some_x>x)
 
-named_x_reference = rgx.named("some_x")
+named_x_reference = named("some_x")
 
 print(named_x_reference) # (?P=x)
 
@@ -130,38 +126,50 @@ To create a named capturing group, use `rgx.named(name: str, x)`, or `rgx.named(
 ### Character classes
 
 ```python
-import rgx
+from rgx import pattern, meta
 
 
-az = rgx.pattern("a").to("z") # rgx.Chars.to(other: str | Literal | Chars)
+az = pattern("a").to("z") # rgx.Chars.to(other: str | Literal | Chars)
 print(az) # [a-z]
 
-digits_or_space = rgx.pattern(["1", "2", "3", rgx.meta.WHITESPACE]) 
+digits_or_space = pattern(["1", "2", "3", meta.WHITESPACE]) 
 print(digits_or_space) # [123\s]
 
 print(az | digits_or_space) # [a-z123\s]
 
 
-print( # rgx.entities.Chars.reverse(self)
+print( # rgx.Chars.reverse(self)
     (az | digits_or_space).reverse() # [^a-z123\s]
 )
 
-```  
+```
+
+#### Excluding characters
+
+If you have two instances of Chars (or compatible literals), you can exclude one from another:
+
+```python
+from rgx import pattern
+
+letters = pattern("a").to("z") | pattern("A").to("Z") # [A-Za-z]
+vowels = pattern(list("aAeEiIoOuU")) # [AEIOUaeiou]
+consonants = letters.exclude(vowels) # [BCDFGHJ-NP-TV-Zbcdfghj-np-tv-z]
+```
 
 ### Conditional pattern
 
 ```python
-import rgx
+from rgx import pattern, conditional
 
-x = rgx.pattern("x")
-y = rgx.pattern("y")
-z = rgx.pattern("z")
+x = pattern("x")
+y = pattern("y")
+z = pattern("z")
 
 capture = x.capture()
 
 # (x)(?(1)y|z)
 print(
-    capture + rgx.conditional(1, y, z)
+    capture + conditional(1, y, z)
 )
 ``` 
 
@@ -536,7 +544,7 @@ x = pattern("something").accept() # something(*ACCEPT)
 ### Priority
 
 If your extension has to rely on some priority, you can use `respect_priority` function.    
-Let's say you want to add a `x/y` operation, which does something (wow) and has prority between `a|b` and `ab` — so `a|b/cd` is `a|(b/(cd))`.    
+Let's say you want to add a `x/y` operation, which does something (wow) and has prority between `a|b` and `ab` — so `a|b/cd` is the same as `a|(?:b/(?:cd))`.    
 
 ```python
 from rgx.entities import RegexPattern, Concat, Option, AnyRegexPattern, respect_priority, pattern
