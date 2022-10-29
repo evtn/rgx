@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import NoReturn, Optional, Union, overload, Iterable, Sequence, TYPE_CHECKING
+from typing import NoReturn, Optional, Tuple, Union, overload, Iterable, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Literal as LiteralType
@@ -429,7 +429,7 @@ def merge_chars(contents: Sequence[CharType]) -> Sequence[CharRange]:
 
     return result
 
-Bounds = tuple[int, int]
+Bounds = Tuple[int, int]
 
 class Chars(RegexPattern):
     non_special = {".", "[", "|", "~", "*", "(", ")", "+", "$", "&", "?", "#"}
