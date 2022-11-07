@@ -32,11 +32,11 @@ jobs:
           poetry config pypi-token.pypi $PYPI_TOKEN
           poetry publish
 
-      - run: echo "::set-output name=VERSION::$(poetry version -s)"
+      - run: echo "VERSION=$(poetry version -s)" >> $GITHUB_ENV
         id: version-check
 
       - name: Release on GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: dist/*
-          tag_name: ${{ steps.version-check.outputs.VERSION }}
+          tag_name: ${{ env.VERSION }}
