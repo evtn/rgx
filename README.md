@@ -2,7 +2,6 @@ Many people complain about unreadable and complex syntax of regular expressions.
 Many others complain about how they can't remember all constructs and features.
 
 `rgx` solves those problems: it is a straightforward regexp builder. It also places non-capturing groups where needed to respect intended operator priority.   
-It tries to produce a clean  
 It can produce a regular expression string to use in `re.compile` or any other regex library of your choice.    
 
 In other words, with `rgx` you can build a regular expression from parts, using straightforward and simple expressions.
