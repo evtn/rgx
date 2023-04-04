@@ -4,6 +4,7 @@ from rgx.entities import Option
 a = pattern("a")
 b = pattern("b")
 
+
 class TestClass:
     def test_concat(self):
         assert (a + "b").render_str() == "ab"
@@ -40,7 +41,18 @@ class TestClass:
         assert a.maybe().render_str() == "a?"
         assert a.maybe(lazy=True).render_str() == "a??"
 
-        assert a.maybe().maybe().maybe().maybe().maybe().maybe().maybe().maybe().render_str() == "a?"
+        assert (
+            a.maybe()
+            .maybe()
+            .maybe()
+            .maybe()
+            .maybe()
+            .maybe()
+            .maybe()
+            .maybe()
+            .render_str()
+            == "a?"
+        )
 
         assert a.many().many().render_str() == "a+"
 
@@ -67,6 +79,13 @@ class TestClass:
         assert a.repeat_from(4).to(5).render_str() == "a{4,5}"
         assert a.between_x_y_times(4, 5).render_str() == "a{4,5}"
 
+        assert a.repeat(5).many().render_str() == "(?:a{5})+"
+        assert a.many().repeat(10).render_str() == "a{10,}"
+        assert a.repeat(5).to(10).repeat(20).render_str() == "(?:a{5,10}){20}"
+
+        # check Range.repeat() for explanation
+        assert a.repeat(5).repeat(10).render_str() == "(?:a{5}){10}"
+
         # specific cases
         assert a.repeat(1).or_less().render_str() == "a?"
         assert a.repeat(1, True).or_less().render_str() == "a??"
@@ -81,6 +100,9 @@ class TestClass:
         assert a.repeat(1, lazy=True).render_str() == "a"
 
         assert a.repeat(5).to(4).render_str() == "a{4,5}"
+
+        assert a.repeat(0).render_str() == ""
+        assert a.repeat(1).render_str() == a.render_str()
 
     def test_priority(self):
         ab = pattern("ab")

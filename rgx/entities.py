@@ -777,22 +777,50 @@ class Range(RegexPattern):
         max_count: Optional[int] = None,
         lazy: bool = False,
     ) -> None:
-        self.contents = respect_priority(contents, self.priority + 1)
+        if min_count == max_count == 1:
+            self.contents = pattern(contents)
+        else:
+            self.contents = respect_priority(contents, self.priority + 1)
+
+        if max_count is not None and min_count > max_count:
+            min_count, max_count = max_count, min_count
+
+        if min_count < 0:
+            raise ValueError("Quantifier lower bound cannot be less than 0")
+
+        if max_count is not None and max_count < 0:
+            raise ValueError("Quantifier upper bound cannot be less than 0")
+
         self.min_count = min_count
         self.max_count = max_count
         self.lazy = lazy
 
-        if self.max_count is not None and self.min_count > self.max_count:
-            self.min_count, self.max_count = self.max_count, self.min_count
+    def repeat(self, count: int, lazy: bool = False) -> Range:
+        """
 
-        if self.min_count < 0:
-            raise ValueError("Quantifier lower bound cannot be less than 0")
+        The logic here should be carefully thought through.
+        If we multiply a fixed-size pattern a{X} by Y, we generally DO NOT get a{X*Y}
+        If we multiply a .or_less() pattern a{,X} by Y, we get a{,X*Y}
+        If we multiply a pattern a{1,X} (X!=1) by Y, we get a{Y,X*Y}
 
-        if self.max_count is not None and self.max_count < 0:
-            raise ValueError("Quantifier upper bound cannot be less than 0")
+        Above logic doesn't scale up with patterns a{X,N} * Y, if X is not in {0, 1}, so we should fallback to (?:a{X,N}){Y}
 
-        if max_count is not None and min_count > max_count:
-            min_count, max_count = max_count, min_count
+        While it is easy to say a{X} * Y == a{X*Y} (i.e. a{5} * 10 == a{50}),
+        ...this doesn't work well with .many() and other quantifiers: (a{5} * 10).many() != a{50,}
+        ...but rather (?:a{5}){10,}
+
+        """
+
+        if self.min_count not in {0, 1}:
+            return super().repeat(count, lazy)
+
+        max_count = self.max_count * count if self.max_count else None
+        return Range(
+            self.contents,
+            min_count=self.min_count * count,
+            max_count=max_count,
+            lazy=lazy,
+        )
 
     def or_more(self) -> Range:
         return Range(self.contents, min_count=self.min_count, lazy=self.lazy)
@@ -849,6 +877,9 @@ class Range(RegexPattern):
         yield "}"
 
     def render(self) -> StrGen:
+        if self.max_count == 0:
+            return
+
         yield from self.contents.render()
 
         if self.min_count == self.max_count == 1:
@@ -858,55 +889,6 @@ class Range(RegexPattern):
 
         if self.lazy and self.min_count != self.max_count:
             yield "?"
-
-    def many(self, lazy: bool = False):
-        return Range(
-            self.contents,
-            min_count=self.min_count,
-            max_count=None,
-            lazy=self.lazy and lazy,
-        )
-
-    def some(self, lazy: bool = False):
-        return Range(self.contents, min_count=0, lazy=self.lazy and lazy)
-
-    def maybe(self, lazy: bool = False):
-        if self.min_count in {0, 1}:
-            return Range(
-                self.contents,
-                min_count=0,
-                max_count=self.max_count,
-                lazy=self.lazy and lazy,
-            )
-        return Range(self, min_count=0, max_count=1, lazy=lazy)
-
-    def x_times(self, count: int, lazy: bool = False) -> Range:
-        if self.min_count in {0, 1} or self.max_count is None:
-            return Range(
-                self.contents,
-                min_count=self.min_count * count,
-                max_count=self.max_count * count
-                if self.max_count is not None
-                else None,
-                lazy=self.lazy and lazy,
-            )
-        return Range(self, min_count=count, max_count=count, lazy=lazy)
-
-    def x_or_more_times(self, count: int, lazy: bool = False) -> Range:
-        if self.min_count in {0, 1} or self.max_count is None:
-            return Range(
-                self.contents,
-                min_count=self.min_count * count,
-                max_count=None,
-                lazy=self.lazy and lazy,
-            )
-        return Range(self, min_count=count, lazy=lazy)
-
-    def x_or_less_times(self, count: int, lazy: bool = False) -> Range:
-        if self.max_count is None:
-            return self.contents.some()
-
-        return Range(self.contents, min_count=0, max_count=self.max_count * count)
 
 
 class NamedPattern(RegexPattern):
