@@ -1,5 +1,14 @@
 from __future__ import annotations
-from typing import NoReturn, Optional, Tuple, Union, overload, Iterable, Sequence, TYPE_CHECKING
+from typing import (
+    NoReturn,
+    Optional,
+    Tuple,
+    Union,
+    overload,
+    Iterable,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 if TYPE_CHECKING:
     from typing import Literal as LiteralType
@@ -20,23 +29,35 @@ priority_step = 1000
 @overload
 def pattern(literal: str, escape: LiteralType[False]) -> UnescapedLiteral:
     ...
+
+
 @overload
 def pattern(literal: str, escape: bool = True) -> Literal | Chars:
     ...
+
+
 @overload
-def pattern(literal: tuple[AnyRegexPattern, ...], escape: bool = True) -> RegexPattern | NonCapturingGroup:
+def pattern(
+    literal: tuple[AnyRegexPattern, ...], escape: bool = True
+) -> RegexPattern | NonCapturingGroup:
     ...
+
+
 @overload
 def pattern(literal: list[CharType], escape: bool = True) -> Chars:
     ...
+
+
 @overload
 def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     ...
+
+
 def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     """
-    
+
     A universal pattern constructor.
-    
+
     - With a string, returns a literan pattern. with `escape=False` returns an unescaped pattern.
     - With a tuple, returns a non-capturing group of patterns (or just one pattern if tuple has one element)
     - With a list, returns a character group (`[...]`). List must consist of strings and CharRange
@@ -58,9 +79,7 @@ def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
 
 
 def respect_priority(contents_: AnyRegexPattern, other_priority: int) -> RegexPattern:
-    contents: RegexPattern = (
-        pattern(contents_)
-    )
+    contents: RegexPattern = pattern(contents_)
     if contents.priority < other_priority:
         return NonCapturingGroup(contents)
     return contents
@@ -68,6 +87,7 @@ def respect_priority(contents_: AnyRegexPattern, other_priority: int) -> RegexPa
 
 class RegexPattern:
     priority: int = 100 * priority_step
+
     def render(self) -> StrGen:
         """
         Internal method
@@ -78,7 +98,7 @@ class RegexPattern:
 
     def render_str(self, flags: str = "") -> str:
         """
-        
+
         Renders given pattern into a string with specified global flags.
 
         """
@@ -154,7 +174,7 @@ class RegexPattern:
         Use this for repeating patterns (one or more times)
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
-        
+
         ```python
         x.many() # "x+"
         x.many(True) # "x+?"
@@ -207,7 +227,7 @@ class RegexPattern:
 
     def x_or_less_times(self, count: int, lazy: bool = False) -> Range:
         """
-        
+
         Use this to match pattern x or less times (hence the name).
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
@@ -221,7 +241,7 @@ class RegexPattern:
 
     def x_or_more_times(self, count: int, lazy: bool = False) -> Range:
         """
-        
+
         Use this to match pattern x or more times (hence the name).
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
@@ -235,7 +255,7 @@ class RegexPattern:
 
     def x_times(self, count: int, lazy: bool = False) -> Range:
         """
-        
+
         Use this to match pattern exactly x times (hence the name).
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
@@ -247,9 +267,11 @@ class RegexPattern:
         """
         return self.repeat(count, lazy)
 
-    def between_x_y_times(self, min_count: int, max_count: int, lazy: bool = False) -> Range:
+    def between_x_y_times(
+        self, min_count: int, max_count: int, lazy: bool = False
+    ) -> Range:
         """
-        
+
         Use this to match pattern between x and y times, inclusive (hence the name).
 
         When not lazy, matches as many times as possible, otherwise matches as few times as possible.
@@ -338,12 +360,12 @@ class RegexPattern:
         return self.negative_lookbehind(other)
 
     def comment(self, text: str) -> Concat:
-        """ leaves a comment in expression (if needed for whatever reason) """
+        """leaves a comment in expression (if needed for whatever reason)"""
         return Concat(self, Comment(UnescapedLiteral(text.replace(")", "\\)"))))
 
     def capture(self) -> Group:
         """
-        
+
         Use this to make a capturing group out of pattern.
 
         ```python
@@ -354,6 +376,7 @@ class RegexPattern:
 
     def named(self, name: str) -> NamedPattern:
         return NamedPattern(name, self)
+
 
 class GroupBase(RegexPattern):
     contents: RegexPattern
@@ -375,32 +398,37 @@ class GroupBase(RegexPattern):
 class Group(GroupBase):
     prefix = ""
 
+
 class NonCapturingGroup(GroupBase):
     prefix = "?:"
+
 
 class Lookahead(GroupBase):
     prefix = "?="
 
+
 class NegativeLookahead(GroupBase):
     prefix = "?!"
+
 
 class Lookbehind(GroupBase):
     prefix = "?<="
 
+
 class NegativeLookbehind(GroupBase):
     prefix = "?<!"
 
+
 class Comment(GroupBase):
     prefix = "?#"
+
 
 def sort_chartype(seq: Sequence[CharRange]) -> Sequence[CharRange]:
     def sorting_func(char: CharRange) -> tuple[int, int]:
         return char.start, char.stop
 
-    return sorted(
-        seq,
-        key=sorting_func
-    )
+    return sorted(seq, key=sorting_func)
+
 
 def make_range(part: CharType) -> CharRange:
     if isinstance(part, str):
@@ -408,6 +436,7 @@ def make_range(part: CharType) -> CharRange:
     if isinstance(part, Literal):
         return CharRange(part.contents, part.contents)
     return part
+
 
 def merge_chars(contents: Sequence[CharType]) -> Sequence[CharRange]:
     result: list[CharRange] = []
@@ -429,10 +458,13 @@ def merge_chars(contents: Sequence[CharType]) -> Sequence[CharRange]:
 
     return result
 
+
 Bounds = Tuple[int, int]
+
 
 class Chars(RegexPattern):
     non_special = {".", "[", "|", "~", "*", "(", ")", "+", "$", "&", "?", "#"}
+
     def __init__(self, contents: Sequence[CharType], is_reversed: bool = False):
         self.contents = list(merge_chars(contents))
 
@@ -486,11 +518,14 @@ class Chars(RegexPattern):
     def exclude(self, chars: AnyRegexPattern) -> Chars:
         chars = pattern(chars)
         if not isinstance(chars, Chars):
-            raise ValueError("Can't exclude non-Chars pattern, don't really know how...")
+            raise ValueError(
+                "Can't exclude non-Chars pattern, don't really know how..."
+            )
         result = []
         for part in self.contents:
             result.extend(part.exclude(chars))
         return Chars(result)
+
 
 class ReversedChars(RegexPattern):
     def __init__(self, contents: Sequence[CharType]):
@@ -498,7 +533,7 @@ class ReversedChars(RegexPattern):
 
     def render(self) -> StrGen:
         yield "["
-        yield "^"    
+        yield "^"
         for char in self.contents:
             if isinstance(char, (Literal, CharRange)):
                 yield from char.render()
@@ -525,6 +560,7 @@ class ReversedChars(RegexPattern):
             return ReversedChars([*self.contents, *other.contents])
         return Option(self, other)
 
+
 class CharRange:
     min_char = 0
     max_char = 0x10FFFF
@@ -548,7 +584,9 @@ class CharRange:
         self.meta = meta
 
         if not (start or stop):
-            raise ValueError("Cannot create a character range with no data. Use rgx.meta.ANY instead")
+            raise ValueError(
+                "Cannot create a character range with no data. Use rgx.meta.ANY instead"
+            )
 
     @staticmethod
     def render_char(char: int) -> str:
@@ -560,16 +598,16 @@ class CharRange:
             return
 
         diff = self.stop - self.start
-        
+
         if self.start:
             yield self.render_char(self.start)
-        
+
         if not diff:
-            return # one char
-        
+            return  # one char
+
         if diff == 2:
-            yield chr(self.stop - 1) # render 012 instead of 0-2
-        
+            yield chr(self.stop - 1)  # render 012 instead of 0-2
+
         if diff > 2:
             yield "-"
 
@@ -588,40 +626,38 @@ class CharRange:
         self_range = range(bounds[0], bounds[1] + 1)
 
         if exclude[0] - 1 in self_range:
-            result.append(
-                (bounds[0], exclude[0] - 1)
-            )
+            result.append((bounds[0], exclude[0] - 1))
         if exclude[1] + 1 in self_range:
-            result.append(
-                (exclude[1] + 1, bounds[1])
-            )
+            result.append((exclude[1] + 1, bounds[1]))
         return result
 
     def exclude(self, chars: Chars) -> list[CharRange]:
         if self.meta:
-            raise ValueError(f"Cannot exclude chars '{chars}' from meta-sequence '{self.meta}'")
+            raise ValueError(
+                f"Cannot exclude chars '{chars}' from meta-sequence '{self.meta}'"
+            )
 
         result: list[Bounds] = [(self.start, self.stop)]
         temp_result: list[Bounds] = []
         cut_start = 0
         last_cut_start = 0
-        
+
         for char_part in chars.contents:
             if char_part.meta:
-                raise ValueError(f"Cannot exclude meta-sequence '{self.meta}' from chars '[{self}]'")
+                raise ValueError(
+                    f"Cannot exclude meta-sequence '{self.meta}' from chars '[{self}]'"
+                )
             exclude = (char_part.start, char_part.stop)
             for i, bounds in enumerate(result[cut_start:], start=cut_start):
                 if exclude[1] < bounds[0]:
                     temp_result.extend(result[i:])
                     break
-                
+
                 if exclude[0] > bounds[1]:
                     temp_result.append(result[i])
                     continue
 
-                temp_result.extend(
-                    self.exclude_bounds(bounds, exclude)
-                )
+                temp_result.extend(self.exclude_bounds(bounds, exclude))
 
             last_cut_start = cut_start
             cut_start = len(temp_result) - 1
@@ -637,22 +673,32 @@ class CharRange:
     def __repr__(self):
         return "".join(self.render())
 
+
 @overload
 def char_range(start: Optional[str | int], stop: str | int) -> Chars:
     ...
+
+
 @overload
 def char_range(start: str | int, stop: None = None) -> Chars:
     ...
+
+
 @overload
 def char_range(start: None = None, stop: None = None) -> NoReturn:
     ...
+
+
 @overload
 def char_range(start: Optional[str | int], stop: Optional[str | int]) -> Chars:
     ...
 
-def char_range(start: Optional[str | int] = None, stop: Optional[str | int] = None) -> Chars:
+
+def char_range(
+    start: Optional[str | int] = None, stop: Optional[str | int] = None
+) -> Chars:
     """
-    
+
     Use this for character ranges (e.g. `[a-z]`)
 
     Can be combined with other Chars istances (or lists) using |
@@ -666,6 +712,7 @@ def char_range(start: Optional[str | int] = None, stop: Optional[str | int] = No
 
 class Concat(RegexPattern):
     priority = 2 * priority_step
+
     def __init__(self, *contents: AnyRegexPattern) -> None:
         self.contents = [respect_priority(part, self.priority) for part in contents]
 
@@ -679,8 +726,11 @@ class Concat(RegexPattern):
 
 class Option(RegexPattern):
     priority = 0 * priority_step
+
     def __init__(self, *alternatives: AnyRegexPattern):
-        self.alternatives = [respect_priority(alternative, self.priority) for alternative in alternatives]
+        self.alternatives = [
+            respect_priority(alternative, self.priority) for alternative in alternatives
+        ]
 
     def render(self) -> StrGen:
         if not self.alternatives:
@@ -719,23 +769,58 @@ class GlobalFlags(GroupBase):
 
 class Range(RegexPattern):
     priority: int = 3 * priority_step
-    def __init__(self, *contents: AnyRegexPattern, min_count: int = 0, max_count: Optional[int] = None, lazy: bool = False) -> None:
-        self.contents = respect_priority(contents, self.priority + 1)
+
+    def __init__(
+        self,
+        *contents: AnyRegexPattern,
+        min_count: int = 0,
+        max_count: Optional[int] = None,
+        lazy: bool = False,
+    ) -> None:
+        if min_count == max_count == 1:
+            self.contents = pattern(contents)
+        else:
+            self.contents = respect_priority(contents, self.priority + 1)
+
+        if max_count is not None and min_count > max_count:
+            min_count, max_count = max_count, min_count
+
+        if min_count < 0:
+            raise ValueError("Quantifier lower bound cannot be less than 0")
+
+        if max_count is not None and max_count < 0:
+            raise ValueError("Quantifier upper bound cannot be less than 0")
+
         self.min_count = min_count
         self.max_count = max_count
         self.lazy = lazy
 
-        if self.max_count is not None and self.min_count > self.max_count:
-            self.min_count, self.max_count = self.max_count, self.min_count
+    def repeat(self, count: int, lazy: bool = False) -> Range:
+        """
 
-        if self.min_count < 0:
-            raise ValueError("Quantifier lower bound cannot be less than 0")
+        The logic here should be carefully thought through.
+        If we multiply a fixed-size pattern a{X} by Y, we generally DO NOT get a{X*Y}
+        If we multiply a .or_less() pattern a{,X} by Y, we get a{,X*Y}
+        If we multiply a pattern a{1,X} (X!=1) by Y, we get a{Y,X*Y}
 
-        if self.max_count is not None and self.max_count < 0:
-            raise ValueError("Quantifier upper bound cannot be less than 0")
-        
-        if max_count is not None and min_count > max_count:
-            min_count, max_count = max_count, min_count
+        Above logic doesn't scale up with patterns a{X,N} * Y, if X is not in {0, 1}, so we should fallback to (?:a{X,N}){Y}
+
+        While it is easy to say a{X} * Y == a{X*Y} (i.e. a{5} * 10 == a{50}),
+        ...this doesn't work well with .many() and other quantifiers: (a{5} * 10).many() != a{50,}
+        ...but rather (?:a{5}){10,}
+
+        """
+
+        if self.min_count not in {0, 1}:
+            return super().repeat(count, lazy)
+
+        max_count = self.max_count * count if self.max_count else None
+        return Range(
+            self.contents,
+            min_count=self.min_count * count,
+            max_count=max_count,
+            lazy=lazy,
+        )
 
     def or_more(self) -> Range:
         return Range(self.contents, min_count=self.min_count, lazy=self.lazy)
@@ -744,13 +829,17 @@ class Range(RegexPattern):
         return self.or_more()
 
     def or_less(self) -> Range:
-        return Range(self.contents, min_count=0, max_count=self.max_count, lazy=self.lazy)
+        return Range(
+            self.contents, min_count=0, max_count=self.max_count, lazy=self.lazy
+        )
 
     def __neg__(self) -> Range:
         return self.or_less()
 
     def to(self, count: int) -> Range:
-        return Range(self.contents, min_count=self.min_count, max_count=count, lazy=self.lazy)
+        return Range(
+            self.contents, min_count=self.min_count, max_count=count, lazy=self.lazy
+        )
 
     def __rshift__(self, count: int) -> Range:
         return self.to(count)
@@ -787,8 +876,10 @@ class Range(RegexPattern):
 
         yield "}"
 
-
     def render(self) -> StrGen:
+        if self.max_count == 0:
+            return
+
         yield from self.contents.render()
 
         if self.min_count == self.max_count == 1:
@@ -798,47 +889,6 @@ class Range(RegexPattern):
 
         if self.lazy and self.min_count != self.max_count:
             yield "?"
-
-    def many(self, lazy: bool = False):
-        return Range(self.contents, min_count=self.min_count, max_count=None, lazy=self.lazy and lazy)
-
-    def some(self, lazy: bool = False):
-        return Range(self.contents, min_count=0, lazy=self.lazy and lazy)
-
-    def maybe(self, lazy: bool = False):
-        if self.min_count in {0, 1}:
-            return Range(self.contents, min_count=0, max_count=self.max_count, lazy=self.lazy and lazy)
-        return Range(self, min_count=0, max_count=1, lazy=lazy)
-
-    def x_times(self, count: int, lazy: bool = False) -> Range:
-        if self.min_count in {0, 1} or self.max_count is None:
-            return Range(
-                self.contents, 
-                min_count=self.min_count * count, 
-                max_count=self.max_count * count if self.max_count is not None else None, 
-                lazy=self.lazy and lazy
-            )
-        return Range(self, min_count=count, max_count=count, lazy=lazy)
-
-    def x_or_more_times(self, count: int, lazy: bool = False) -> Range:
-        if self.min_count in {0, 1} or self.max_count is None:
-            return Range(
-                self.contents, 
-                min_count=self.min_count * count, 
-                max_count=None, 
-                lazy=self.lazy and lazy
-            )
-        return Range(self, min_count=count, lazy=lazy)
-
-    def x_or_less_times(self, count: int, lazy: bool = False) -> Range:
-        if self.max_count is None:
-            return self.contents.some()
-
-        return Range(
-            self.contents,
-            min_count=0,
-            max_count=self.max_count * count
-        )
 
 
 class NamedPattern(RegexPattern):
@@ -853,6 +903,7 @@ class NamedPattern(RegexPattern):
     pattern.named("x") # (?P=x)
     ```
     """
+
     def __init__(self, name: str, contents: Optional[AnyRegexPattern] = None):
         self.name = name
         self.contents = pattern(contents) if contents is not None else None
@@ -871,24 +922,24 @@ class NamedPattern(RegexPattern):
 
 
 class ConditionalPattern(RegexPattern):
-    """ 
+    """
     Use to match different patterns depending on whether another group matched or not.
-    
+
     Next two snippets produce effectively the same result:
 
     ```python
     from rgx import pattern
-    
+
     hello = pattern("hello").capture()
     world = pattern("world")
     where = pattern("where")
 
     x = (hello + world) | where
     ```
-    
+
     ```python
     from rgx import pattern, conditional
-    
+
     hello = pattern("hello").capture()
     world = pattern("world")
     where = pattern("where")
@@ -896,7 +947,10 @@ class ConditionalPattern(RegexPattern):
     x = hello.maybe() + conditional(1, world, where)
     ```
     """
-    def __init__(self, group: int, true_option: AnyRegexPattern, false_option: AnyRegexPattern) -> None:
+
+    def __init__(
+        self, group: int, true_option: AnyRegexPattern, false_option: AnyRegexPattern
+    ) -> None:
         self.group = group
         self.true_option = respect_priority(true_option, Option.priority + 1)
         self.false_option = respect_priority(false_option, Option.priority + 1)
@@ -926,7 +980,7 @@ class Literal(RegexPattern):
 
 class UnescapedLiteral(Literal):
     """
-    
+
     Unescaped literal. Renders into whatever is passed (as long as it is a string)
 
     """
@@ -937,7 +991,7 @@ class UnescapedLiteral(Literal):
 
 def group_reference(group: int) -> UnescapedLiteral:
     """
-    
+
     Renders into a group reference (backreference)
     E.g. if Group #1 is `(x|y)` and it has matched "x", `reference(1)` would match exactly "x", but not "y"
 
