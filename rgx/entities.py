@@ -63,19 +63,23 @@ def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
     - With a list, returns a character group (`[...]`). List must consist of strings and CharRange
 
     """
+    if isinstance(literal, RegexPattern):
+        return literal
+
     if isinstance(literal, str):
         if not escape:
             return UnescapedLiteral(literal)
         if len(literal) == 1:
             return Chars([literal])
         return Literal(literal)
+
     if isinstance(literal, tuple):
         if len(literal) == 1:
             return pattern(literal[0])
         return NonCapturingGroup(Concat(*literal))
+
     if isinstance(literal, list):
         return Chars(literal)
-    return literal
 
 
 def respect_priority(contents_: AnyRegexPattern, other_priority: int) -> RegexPattern:
@@ -95,6 +99,9 @@ class RegexPattern:
         Returns a generator, that can be joined to get a pattern string representation
         """
         return NotImplemented
+
+    def case_insensitive(self) -> RegexPattern:
+        return self.set_flags("i")
 
     def render_str(self, flags: str = "") -> str:
         """
@@ -388,6 +395,9 @@ class GroupBase(RegexPattern):
     def render_prefix(self) -> StrGen:
         yield self.prefix
 
+    def case_insensitive(self):
+        return self.__class__(self.contents.case_insensitive())
+
     def render(self) -> StrGen:
         yield "("
         yield from self.render_prefix()
@@ -526,6 +536,28 @@ class Chars(RegexPattern):
             result.extend(part.exclude(chars))
         return Chars(result)
 
+    def case_insensitive(self) -> Chars:
+        contents: list[CharRange] = []
+
+        for part in self.contents:
+            start_char = chr(part.start)
+            stop_char = chr(part.stop)
+
+            is_lower = start_char.islower() and stop_char.islower()
+            is_upper = start_char.isupper() and stop_char.isupper()
+
+            if is_lower:
+                upper_chars = map(ord, map(str.upper, (start_char, stop_char)))
+                contents.append(CharRange(*upper_chars))
+
+            elif is_upper:
+                lower_chars = map(ord, map(str.lower, (start_char, stop_char)))
+                contents.append(CharRange(*lower_chars))
+
+            contents.append(part)
+
+        return Chars(contents)
+
 
 class ReversedChars(RegexPattern):
     def __init__(self, contents: Sequence[CharType]):
@@ -542,6 +574,9 @@ class ReversedChars(RegexPattern):
             else:
                 yield re.escape(char)
         yield "]"
+
+    def case_insensitive(self):
+        return self.reverse().case_insensitive().reverse()
 
     def reverse(self) -> Chars:
         return Chars(self.contents)
@@ -719,6 +754,11 @@ class Concat(RegexPattern):
     def __add__(self, other: AnyRegexPattern) -> Concat:
         return Concat(*self.contents, other)
 
+    def case_insensitive(self):
+        new = Concat()
+        new.contents = [part.case_insensitive() for part in self.contents]
+        return new
+
     def render(self) -> StrGen:
         for part in self.contents:
             yield from part.render()
@@ -731,6 +771,11 @@ class Option(RegexPattern):
         self.alternatives = [
             respect_priority(alternative, self.priority) for alternative in alternatives
         ]
+
+    def case_insensitive(self) -> RegexPattern:
+        new = Option()
+        new.alternatives = [part.case_insensitive() for part in self.alternatives]
+        return new
 
     def render(self) -> StrGen:
         if not self.alternatives:
@@ -751,6 +796,9 @@ class LocalFlags(RegexPattern):
     def __init__(self, contents: AnyRegexPattern, flags: str):
         self.contents = pattern(contents)
         self.flags = flags
+
+    def case_insensitive(self) -> RegexPattern:
+        return LocalFlags(self.contents.case_insensitive(), self.flags)
 
     def render(self) -> StrGen:
         yield "(?"
@@ -794,6 +842,14 @@ class Range(RegexPattern):
         self.min_count = min_count
         self.max_count = max_count
         self.lazy = lazy
+
+    def case_insensitive(self) -> RegexPattern:
+        new = self.contents.case_insensitive().repeat(self.min_count)
+        if self.max_count is None:
+            new = new.or_more()
+        else:
+            new = new.to(self.max_count)
+        return new
 
     def repeat(self, count: int, lazy: bool = False) -> Range:
         """
@@ -908,6 +964,10 @@ class NamedPattern(RegexPattern):
         self.name = name
         self.contents = pattern(contents) if contents is not None else None
 
+    def case_insensitive(self) -> RegexPattern:
+        contents = self.contents.case_insensitive() if self.contents else None
+        return NamedPattern(self.name, contents)
+
     def render(self) -> StrGen:
         yield "(?P"
         if self.contents:
@@ -954,6 +1014,13 @@ class ConditionalPattern(RegexPattern):
         self.group = group
         self.true_option = respect_priority(true_option, Option.priority + 1)
         self.false_option = respect_priority(false_option, Option.priority + 1)
+
+    def case_insensitive(self) -> RegexPattern:
+        return ConditionalPattern(
+            self.group,
+            self.true_option.case_insensitive(),
+            self.false_option.case_insensitive(),
+        )
 
     def render(self) -> StrGen:
         yield "(?("
