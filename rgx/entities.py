@@ -1,8 +1,10 @@
 from __future__ import annotations
 from typing import (
+    Callable,
     NoReturn,
     Optional,
     Tuple,
+    List,
     Union,
     overload,
     Iterable,
@@ -11,15 +13,17 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from typing import Literal as LiteralType
+    from typing import Literal as LiteralType, Self
+
 
 import itertools
 import re
 
 StrGen = Iterable[str]
 CharType = Union[str, "CharRange", "Literal"]
-LiteralPart = Union["tuple[AnyRegexPattern, ...]", "list[CharType]", str]
+LiteralPart = Union[Tuple["AnyRegexPattern", ...], List[CharType], str]
 AnyRegexPattern = Union[LiteralPart, "RegexPattern"]
+Processor = Callable[["RegexPattern"], "RegexPattern"]
 
 OrResult = Union["Option", "Chars", "ReversedChars"]
 
@@ -91,6 +95,7 @@ def respect_priority(contents_: AnyRegexPattern, other_priority: int) -> RegexPa
 
 class RegexPattern:
     priority: int = 100 * priority_step
+    optimized = False
 
     def render(self) -> StrGen:
         """
@@ -103,19 +108,66 @@ class RegexPattern:
     def case_insensitive(self) -> RegexPattern:
         return self.set_flags("i")
 
+    def merge_flags(self) -> RegexPattern:
+        return self.apply(lambda x: x.merge_flags())
+
+    def optimize(self) -> Self:
+        self = self.merge_flags()
+
+        self.optimized = True
+        return self
+
+    def apply(self, fn: Processor) -> Self:
+        return self
+
+    @staticmethod
+    def merge_flags_abstract(
+        parts: Sequence[RegexPattern],
+    ) -> tuple[Sequence[RegexPattern], set[str]]:
+        common_flags: set[str] | None = None
+
+        for part in parts:
+            if not isinstance(part, LocalFlags):
+                return parts, set()
+
+            flags = set(part.flags)
+
+            if common_flags is None:
+                common_flags = flags
+            else:
+                common_flags &= flags
+
+        if not common_flags:
+            return parts, set()
+
+        new_parts: list[RegexPattern] = []
+
+        for alt in parts:
+            assert isinstance(alt, LocalFlags)
+            new_flags = "".join(f for f in alt.flags if f not in common_flags)
+
+            if new_flags:
+                new_parts.append(LocalFlags(alt, new_flags))
+            else:
+                new_parts.append(alt)
+
+        return new_parts, common_flags
+
     def render_str(self, flags: str = "") -> str:
         """
 
         Renders given pattern into a string with specified global flags.
 
         """
-        contents: Iterable[str]
-        if flags:
-            contents = itertools.chain(GlobalFlags(flags).render(), self.render())
-        else:
-            contents = self.render()
 
-        return "".join(contents)
+        parts: list[Iterable[str]] = []
+
+        if flags:
+            parts.append(GlobalFlags(flags).render())
+
+        parts.append(self.optimize().render())
+
+        return "".join(itertools.chain(*parts))
 
     def __repr__(self) -> str:
         return self.render_str()
@@ -404,6 +456,9 @@ class GroupBase(RegexPattern):
         yield from self.contents.render()
         yield ")"
 
+    def apply(self, fn: Processor) -> RegexPattern:
+        return self.__class__(fn(self.contents))
+
 
 class Group(GroupBase):
     prefix = ""
@@ -411,6 +466,11 @@ class Group(GroupBase):
 
 class NonCapturingGroup(GroupBase):
     prefix = "?:"
+
+    def optimize(self) -> Self:
+        if isinstance(self.contents, NonCapturingGroup):
+            return self.contents.optimize()
+        return super().optimize()
 
 
 class Lookahead(GroupBase):
@@ -475,7 +535,7 @@ Bounds = Tuple[int, int]
 class Chars(RegexPattern):
     non_special = {".", "[", "|", "~", "*", "(", ")", "+", "$", "&", "?", "#"}
 
-    def __init__(self, contents: Sequence[CharType], is_reversed: bool = False):
+    def __init__(self, contents: Sequence[CharType]):
         self.contents = list(merge_chars(contents))
 
     def render(self) -> StrGen:
@@ -749,6 +809,9 @@ class Concat(RegexPattern):
     priority = 2 * priority_step
 
     def __init__(self, *contents: AnyRegexPattern) -> None:
+        if len(contents) >= 3:
+            contents = (contents[0], Concat(*contents[1:]))
+
         self.contents = [respect_priority(part, self.priority) for part in contents]
 
     def __add__(self, other: AnyRegexPattern) -> Concat:
@@ -763,19 +826,50 @@ class Concat(RegexPattern):
         for part in self.contents:
             yield from part.render()
 
+    def merge_flags(self) -> LocalFlags | Concat:
+        self = self.apply(lambda x: x.merge_flags())
+
+        processed, common_flags = self.merge_flags_abstract(self.contents)
+
+        new = Concat(*processed)
+
+        if not common_flags:
+            return new
+
+        return LocalFlags(new, "".join(common_flags))
+
 
 class Option(RegexPattern):
     priority = 0 * priority_step
 
     def __init__(self, *alternatives: AnyRegexPattern):
+        if len(alternatives) >= 3:
+            alternatives = (alternatives[0], Option(*alternatives[1:]))
+
         self.alternatives = [
             respect_priority(alternative, self.priority) for alternative in alternatives
         ]
 
     def case_insensitive(self) -> RegexPattern:
         new = Option()
-        new.alternatives = [part.case_insensitive() for part in self.alternatives]
+        alts = [part.case_insensitive() for part in self.alternatives]
+
+        if all(isinstance(alt, LocalFlags) and "i" in alt.flags for alt in alts):
+            pass
+
         return new
+
+    def merge_flags(self) -> LocalFlags | Option:
+        self = self.apply(lambda x: x.merge_flags())
+
+        processed, common_flags = self.merge_flags_abstract(self.alternatives)
+
+        new = Option(*processed)
+
+        if not common_flags:
+            return new
+
+        return LocalFlags(new, "".join(common_flags))
 
     def render(self) -> StrGen:
         if not self.alternatives:
@@ -946,6 +1040,22 @@ class Range(RegexPattern):
         if self.lazy and self.min_count != self.max_count:
             yield "?"
 
+    def merge_flags(self) -> LocalFlags | Range:
+        processed, common_flags = self.merge_flags_abstract([self.contents])
+
+        if not common_flags:
+            return self
+
+        return LocalFlags(
+            Range(
+                *processed,
+                min_count=self.min_count,
+                max_count=self.max_count,
+                lazy=self.lazy,
+            ),
+            "".join(common_flags),
+        )
+
 
 class NamedPattern(RegexPattern):
     """
@@ -979,6 +1089,23 @@ class NamedPattern(RegexPattern):
             yield "="
             yield self.name
         yield ")"
+
+    def merge_flags(self) -> LocalFlags | NamedPattern:
+        if self.contents is None:
+            return self
+
+        processed, common_flags = self.merge_flags_abstract([self.contents])
+
+        if not common_flags:
+            return self
+
+        return LocalFlags(
+            NamedPattern(
+                self.name,
+                tuple(processed),
+            ),
+            "".join(common_flags),
+        )
 
 
 class ConditionalPattern(RegexPattern):
