@@ -29,7 +29,7 @@ jobs:
         uses: abatilo/actions-poetry@v2
 
       - run: poetry install --with dev
-      - run: poetry run mypy modulename/*.py --disallow-any-expr
+      - run: poetry run mypy rgx/*.py --disallow-any-expr
 
   run-tests:
     runs-on: ubuntu-latest
