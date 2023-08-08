@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from rgx.entities import UnescapedLiteral
 from rgx import pattern, char_range
 
