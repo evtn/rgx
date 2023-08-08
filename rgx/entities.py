@@ -109,10 +109,11 @@ class RegexPattern:
         return self.set_flags("i")
 
     def merge_flags(self) -> RegexPattern:
-        return self.apply(lambda x: x.merge_flags())
+        return self
 
-    def optimize(self) -> Self:
+    def optimize(self) -> RegexPattern:
         self = self.merge_flags()
+        self = self.apply(lambda x: x.optimize())
 
         self.optimized = True
         return self
@@ -456,7 +457,7 @@ class GroupBase(RegexPattern):
         yield from self.contents.render()
         yield ")"
 
-    def apply(self, fn: Processor) -> RegexPattern:
+    def apply(self, fn: Processor) -> Self:
         return self.__class__(fn(self.contents))
 
 
@@ -467,7 +468,7 @@ class Group(GroupBase):
 class NonCapturingGroup(GroupBase):
     prefix = "?:"
 
-    def optimize(self) -> Self:
+    def optimize(self) -> RegexPattern:
         if isinstance(self.contents, NonCapturingGroup):
             return self.contents.optimize()
         return super().optimize()
@@ -838,6 +839,9 @@ class Concat(RegexPattern):
 
         return LocalFlags(new, "".join(common_flags))
 
+    def apply(self, fn: Processor) -> Self:
+        return Concat(*map(fn, self.contents))
+
 
 class Option(RegexPattern):
     priority = 0 * priority_step
@@ -885,6 +889,9 @@ class Option(RegexPattern):
     def __ror__(self, other: AnyRegexPattern) -> Option:
         return Option(other, *self.alternatives)
 
+    def apply(self, fn: Processor) -> Self:
+        return Option(*map(fn, self.alternatives))
+
 
 class LocalFlags(RegexPattern):
     def __init__(self, contents: AnyRegexPattern, flags: str):
@@ -900,6 +907,9 @@ class LocalFlags(RegexPattern):
         yield ":"
         yield from self.contents.render()
         yield ")"
+
+    def apply(self, fn: Processor) -> Self:
+        return LocalFlags(fn(self.contents), self.flags)
 
 
 class GlobalFlags(GroupBase):
@@ -1047,13 +1057,16 @@ class Range(RegexPattern):
             return self
 
         return LocalFlags(
-            Range(
-                *processed,
-                min_count=self.min_count,
-                max_count=self.max_count,
-                lazy=self.lazy,
-            ),
+            self.apply(lambda _: processed[0]),
             "".join(common_flags),
+        )
+
+    def apply(self, fn: Processor) -> Self:
+        return Range(
+            fn(self.contents),
+            min_count=self.min_count,
+            max_count=self.max_count,
+            lazy=self.lazy,
         )
 
 
@@ -1100,11 +1113,17 @@ class NamedPattern(RegexPattern):
             return self
 
         return LocalFlags(
-            NamedPattern(
-                self.name,
-                tuple(processed),
-            ),
+            self.apply(lambda _: processed[0]),
             "".join(common_flags),
+        )
+
+    def apply(self, fn: Processor) -> Self:
+        if self.contents is None:
+            return self
+
+        return NamedPattern(
+            self.name,
+            fn(self.contents),
         )
 
 
@@ -1158,6 +1177,13 @@ class ConditionalPattern(RegexPattern):
         yield from self.false_option.render()
         yield ")"
 
+    def apply(self, fn: Processor) -> Self:
+        return ConditionalPattern(
+            self.group,
+            fn(self.true_option),
+            fn(self.false_option),
+        )
+
 
 class Literal(RegexPattern):
     def __init__(self, contents: str) -> None:
@@ -1170,6 +1196,9 @@ class Literal(RegexPattern):
 
     def render(self) -> StrGen:
         yield re.escape(self.contents)
+
+    def apply(self, fn: Processor) -> Self:
+        return self
 
 
 class UnescapedLiteral(Literal):
