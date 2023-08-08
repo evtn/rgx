@@ -117,3 +117,7 @@ class TestClass:
 
     def test_empty_option(self):
         assert Option().render_str() == ""
+
+    def test_flag_merging(self):
+        c = (pattern("one") | "two").case_insensitive()
+        assert c.render_str() == "(?i:one|two)"
