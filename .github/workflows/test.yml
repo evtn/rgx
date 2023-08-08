@@ -56,6 +56,6 @@ jobs:
         run: poetry run coverage run --include "rgx/*" -m pytest test/
 
       - name: Coveralls Update
-        run: poetry run coveralls --service=github
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
