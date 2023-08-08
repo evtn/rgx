@@ -722,7 +722,7 @@ class CharRange:
                 "Cannot create a character range with no data. Use rgx.meta.ANY instead"
             )
 
-    def accepts(self, char: str):
+    def accepts(self, char: str) -> bool:
         return ord(char) in range(self.start, self.stop + 1)
 
     @staticmethod
