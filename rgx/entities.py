@@ -449,7 +449,7 @@ class GroupBase(RegexPattern):
         yield self.prefix
 
     def case_insensitive(self):
-        return self.__class__(self.contents.case_insensitive())
+        return self.apply(lambda x: x.case_insensitive())
 
     def render(self) -> StrGen:
         yield "("
@@ -818,10 +818,8 @@ class Concat(RegexPattern):
     def __add__(self, other: AnyRegexPattern) -> Concat:
         return Concat(*self.contents, other)
 
-    def case_insensitive(self):
-        new = Concat()
-        new.contents = [part.case_insensitive() for part in self.contents]
-        return new
+    def case_insensitive(self) -> RegexPattern:
+        return self.apply(lambda x: x.case_insensitive())
 
     def render(self) -> StrGen:
         for part in self.contents:
@@ -855,13 +853,7 @@ class Option(RegexPattern):
         ]
 
     def case_insensitive(self) -> RegexPattern:
-        new = Option()
-        alts = [part.case_insensitive() for part in self.alternatives]
-
-        if all(isinstance(alt, LocalFlags) and "i" in alt.flags for alt in alts):
-            pass
-
-        return new
+        return self.apply(lambda x: x.case_insensitive())
 
     def merge_flags(self) -> LocalFlags | Option:
         self = self.apply(lambda x: x.merge_flags())
@@ -948,12 +940,7 @@ class Range(RegexPattern):
         self.lazy = lazy
 
     def case_insensitive(self) -> RegexPattern:
-        new = self.contents.case_insensitive().repeat(self.min_count)
-        if self.max_count is None:
-            new = new.or_more()
-        else:
-            new = new.to(self.max_count)
-        return new
+        return self.apply(lambda x: x.case_insensitive())
 
     def repeat(self, count: int, lazy: bool = False) -> Range:
         """
@@ -1161,13 +1148,6 @@ class ConditionalPattern(RegexPattern):
         self.true_option = respect_priority(true_option, Option.priority + 1)
         self.false_option = respect_priority(false_option, Option.priority + 1)
 
-    def case_insensitive(self) -> RegexPattern:
-        return ConditionalPattern(
-            self.group,
-            self.true_option.case_insensitive(),
-            self.false_option.case_insensitive(),
-        )
-
     def render(self) -> StrGen:
         yield "(?("
         yield str(self.group)
@@ -1183,6 +1163,9 @@ class ConditionalPattern(RegexPattern):
             fn(self.true_option),
             fn(self.false_option),
         )
+
+    def case_insensitive(self) -> RegexPattern:
+        return self.apply(lambda x: x.case_insensitive())
 
 
 class Literal(RegexPattern):
