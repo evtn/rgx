@@ -1,4 +1,4 @@
-name: Test that everything works
+name: Test
 
 on:
   workflow_dispatch:
@@ -53,4 +53,9 @@ jobs:
       - run: poetry install --with dev
 
       - name: Test
-        run: poetry run pytest test/
+        run: poetry run coverage run --include "rgx/*" -m pytest test/
+
+      - name: Coveralls Update
+        run: coveralls --service=github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
