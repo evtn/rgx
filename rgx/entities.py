@@ -133,7 +133,7 @@ class RegexPattern:
         common_flags: set[str] | None = None
 
         for part in parts:
-            if not isinstance(part, LocalFlags):
+            if not isinstance(part, FlagLike):
                 return parts, set()
 
             flags = set(part.flags)
@@ -149,13 +149,13 @@ class RegexPattern:
         new_parts: list[RegexPattern] = []
 
         for alt in parts:
-            assert isinstance(alt, LocalFlags)
+            assert isinstance(alt, FlagLike)
             new_flags = "".join(f for f in alt.flags if f not in common_flags)
 
             if not new_flags:
-                new_parts.append(alt.contents)
+                new_parts.append(alt.inner)
             elif new_flags != alt.flags:
-                new_parts.append(LocalFlags(alt.contents, new_flags))
+                new_parts.append(LocalFlags(alt.inner, new_flags))
             else:
                 new_parts.append(alt)
 
@@ -540,11 +540,67 @@ def merge_chars(contents: Sequence[CharType]) -> Sequence[CharRange]:
 Bounds = Tuple[int, int]
 
 
-class Chars(RegexPattern):
-    non_special = {".", "[", "|", "~", "*", "(", ")", "+", "$", "&", "?", "#"}
+class FlagLike(RegexPattern):
+    flags: str
+    inner: RegexPattern
 
+
+class CharBase(FlagLike):
     def __init__(self, contents: Sequence[CharType]):
         self.contents = list(merge_chars(contents))
+        self.inner = self
+
+    @property
+    def flags(self):
+        ci = self.case_insensitive()
+        if ci == self:
+            return "i"
+        return ""
+
+    def __eq__(self, other: object):
+        if not isinstance(other, self.__class__):
+            return False
+
+        if len(self.contents) != len(other.contents):
+            return False
+
+        for i, r in enumerate(self.contents):
+            if r != other.contents[i]:
+                return False
+
+        return True
+
+    def case_insensitive(self) -> Self:
+        contents: list[CharRange] = []
+
+        for part in self.contents:
+            start_char = chr(part.start)
+            stop_char = chr(part.stop)
+
+            is_lower = start_char.islower() and stop_char.islower()
+            is_upper = start_char.isupper() and stop_char.isupper()
+
+            if is_lower:
+                upper_chars = map(ord, map(str.upper, (start_char, stop_char)))
+                contents.append(CharRange(*upper_chars))
+
+            elif is_upper:
+                lower_chars = map(ord, map(str.lower, (start_char, stop_char)))
+                contents.append(CharRange(*lower_chars))
+
+            contents.append(part)
+
+        return self.__class__(contents)
+
+
+class Chars(CharBase):
+    non_special = {".", "[", "|", "~", "*", "(", ")", "+", "$", "&", "?", "#"}
+
+    def accepts(self, char: str) -> bool:
+        for chrange in self.contents:
+            if chrange.accepts(char):
+                return True
+        return False
 
     def render(self) -> StrGen:
         if len(self.contents) == 1:
@@ -604,30 +660,8 @@ class Chars(RegexPattern):
             result.extend(part.exclude(chars))
         return Chars(result)
 
-    def case_insensitive(self) -> Chars:
-        contents: list[CharRange] = []
 
-        for part in self.contents:
-            start_char = chr(part.start)
-            stop_char = chr(part.stop)
-
-            is_lower = start_char.islower() and stop_char.islower()
-            is_upper = start_char.isupper() and stop_char.isupper()
-
-            if is_lower:
-                upper_chars = map(ord, map(str.upper, (start_char, stop_char)))
-                contents.append(CharRange(*upper_chars))
-
-            elif is_upper:
-                lower_chars = map(ord, map(str.lower, (start_char, stop_char)))
-                contents.append(CharRange(*lower_chars))
-
-            contents.append(part)
-
-        return Chars(contents)
-
-
-class ReversedChars(RegexPattern):
+class ReversedChars(CharBase):
     def __init__(self, contents: Sequence[CharType]):
         self.contents = list(merge_chars(contents))
 
@@ -642,9 +676,6 @@ class ReversedChars(RegexPattern):
             else:
                 yield re.escape(char)
         yield "]"
-
-    def case_insensitive(self):
-        return self.reverse().case_insensitive().reverse()
 
     def reverse(self) -> Chars:
         return Chars(self.contents)
@@ -690,6 +721,9 @@ class CharRange:
             raise ValueError(
                 "Cannot create a character range with no data. Use rgx.meta.ANY instead"
             )
+
+    def accepts(self, char: str):
+        return ord(char) in range(self.start, self.stop + 1)
 
     @staticmethod
     def render_char(char: int) -> str:
@@ -775,6 +809,16 @@ class CharRange:
 
     def __repr__(self):
         return "".join(self.render())
+
+    def __eq__(self, other: object):
+        if not isinstance(other, CharRange):
+            return False
+
+        return (
+            self.start == other.start
+            and self.stop == other.stop
+            and self.meta == other.meta
+        )
 
 
 @overload
@@ -888,9 +932,10 @@ class Option(RegexPattern):
         return self.__class__(*map(fn, self.alternatives))
 
 
-class LocalFlags(RegexPattern):
+class LocalFlags(FlagLike):
     def __init__(self, contents: AnyRegexPattern, flags: str):
         self.contents = pattern(contents)
+        self.inner = self.contents
         self.flags = flags
 
     def case_insensitive(self) -> RegexPattern:
