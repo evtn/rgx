@@ -86,10 +86,15 @@ def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
         return Chars(literal)
 
 
-def respect_priority(contents_: AnyRegexPattern, other_priority: int) -> RegexPattern:
-    contents: RegexPattern = pattern(contents_)
+def respect_priority(contents: AnyRegexPattern, other_priority: int) -> RegexPattern:
+    contents = pattern(contents)
+
+    if isinstance(contents, NonCapturingGroup):
+        return respect_priority(contents.contents, other_priority)
+
     if contents.priority < other_priority:
         return NonCapturingGroup(contents)
+
     return contents
 
 
@@ -112,8 +117,8 @@ class RegexPattern:
         return self
 
     def optimize(self) -> RegexPattern:
-        self = self.merge_flags()
         self = self.apply(lambda x: x.optimize())
+        self = self.merge_flags()
 
         self.optimized = True
         return self
@@ -147,8 +152,10 @@ class RegexPattern:
             assert isinstance(alt, LocalFlags)
             new_flags = "".join(f for f in alt.flags if f not in common_flags)
 
-            if new_flags:
-                new_parts.append(LocalFlags(alt, new_flags))
+            if not new_flags:
+                new_parts.append(alt.contents)
+            elif new_flags != alt.flags:
+                new_parts.append(LocalFlags(alt.contents, new_flags))
             else:
                 new_parts.append(alt)
 
@@ -826,8 +833,6 @@ class Concat(RegexPattern):
             yield from part.render()
 
     def merge_flags(self) -> LocalFlags | Concat:
-        self = self.apply(lambda x: x.merge_flags())
-
         processed, common_flags = self.merge_flags_abstract(self.contents)
 
         new = Concat(*processed)
@@ -856,8 +861,6 @@ class Option(RegexPattern):
         return self.apply(lambda x: x.case_insensitive())
 
     def merge_flags(self) -> LocalFlags | Option:
-        self = self.apply(lambda x: x.merge_flags())
-
         processed, common_flags = self.merge_flags_abstract(self.alternatives)
 
         new = Option(*processed)
@@ -891,7 +894,7 @@ class LocalFlags(RegexPattern):
         self.flags = flags
 
     def case_insensitive(self) -> RegexPattern:
-        return LocalFlags(self.contents.case_insensitive(), self.flags)
+        return self.apply(lambda x: x.case_insensitive())
 
     def render(self) -> StrGen:
         yield "(?"
