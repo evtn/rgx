@@ -3,6 +3,7 @@ from rgx import pattern, conditional, named
 a = pattern("a")
 b = pattern("b")
 
+
 class TestClass:
     def test_look_x(self):
         assert a.before(b).render_str() == "a(?=b)"
