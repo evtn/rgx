@@ -121,3 +121,8 @@ class TestClass:
     def test_flag_merging(self):
         c = (pattern("one") | "two").case_insensitive()
         assert c.render_str() == "(?i:one|two)"
+
+    def test_case_insensitive_chars(self):
+        c = (a + "test").case_insensitive()
+
+        assert c.render_str() == "(?i:[Aa]test)"
