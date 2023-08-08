@@ -840,7 +840,7 @@ class Concat(RegexPattern):
         return LocalFlags(new, "".join(common_flags))
 
     def apply(self, fn: Processor) -> Self:
-        return Concat(*map(fn, self.contents))
+        return self.__class__(*map(fn, self.contents))
 
 
 class Option(RegexPattern):
@@ -890,7 +890,7 @@ class Option(RegexPattern):
         return Option(other, *self.alternatives)
 
     def apply(self, fn: Processor) -> Self:
-        return Option(*map(fn, self.alternatives))
+        return self.__class__(*map(fn, self.alternatives))
 
 
 class LocalFlags(RegexPattern):
@@ -909,7 +909,7 @@ class LocalFlags(RegexPattern):
         yield ")"
 
     def apply(self, fn: Processor) -> Self:
-        return LocalFlags(fn(self.contents), self.flags)
+        return self.__class__(fn(self.contents), self.flags)
 
 
 class GlobalFlags(GroupBase):
@@ -1062,7 +1062,7 @@ class Range(RegexPattern):
         )
 
     def apply(self, fn: Processor) -> Self:
-        return Range(
+        return self.__class__(
             fn(self.contents),
             min_count=self.min_count,
             max_count=self.max_count,
@@ -1121,7 +1121,7 @@ class NamedPattern(RegexPattern):
         if self.contents is None:
             return self
 
-        return NamedPattern(
+        return self.__class__(
             self.name,
             fn(self.contents),
         )
@@ -1178,7 +1178,7 @@ class ConditionalPattern(RegexPattern):
         yield ")"
 
     def apply(self, fn: Processor) -> Self:
-        return ConditionalPattern(
+        return self.__class__(
             self.group,
             fn(self.true_option),
             fn(self.false_option),
