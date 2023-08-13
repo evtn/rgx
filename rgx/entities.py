@@ -662,9 +662,6 @@ class Chars(CharBase):
 
 
 class ReversedChars(CharBase):
-    def __init__(self, contents: Sequence[CharType]):
-        self.contents = list(merge_chars(contents))
-
     def render(self) -> StrGen:
         yield "["
         yield "^"
