@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rgx"
-version = "1.4.4"
+version = "1.4.5"
 description = "Typed, simple and readable regexp generation"
 authors = ["Dmitry Gritsenko <rgx@evtn.ru>"]
 license = "MIT"
