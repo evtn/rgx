@@ -12,14 +12,16 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from wordstreamer import Context, Renderable as BaseRenderable, Renderer, TokenStream
+from wordstreamer.core import Marker
+from wordstreamer.internal_types import Payload
+
 if TYPE_CHECKING:
     from typing import Literal as LiteralType, Self
 
 
-import itertools
 import re
 
-StrGen = Iterable[str]
 CharType = Union[str, "CharRange", "Literal"]
 LiteralPart = Union[Tuple["AnyRegexPattern", ...], List[CharType], str]
 AnyRegexPattern = Union[LiteralPart, "RegexPattern"]
@@ -98,17 +100,21 @@ def respect_priority(contents: AnyRegexPattern, other_priority: int) -> RegexPat
     return contents
 
 
-class RegexPattern:
+class RegexPattern(BaseRenderable):
     priority: int = 100 * priority_step
     optimized = False
+    default_context: Context = Context(Renderer())
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         """
         Internal method
 
         Returns a generator, that can be joined to get a pattern string representation
         """
         return NotImplemented
+
+    def stream(self, context: Context) -> TokenStream:
+        return self.render(context)
 
     def case_insensitive(self) -> RegexPattern:
         return self.set_flags("i")
@@ -161,21 +167,23 @@ class RegexPattern:
 
         return new_parts, common_flags
 
-    def render_str(self, flags: str = "") -> str:
+    def render_str(self, flags: str = "", payload: Payload | None = None) -> str:
         """
 
         Renders given pattern into a string with specified global flags.
 
         """
 
-        parts: list[Iterable[str]] = []
+        renderer = Renderer(payload)
+
+        parts: list[BaseRenderable] = []
 
         if flags:
-            parts.append(GlobalFlags(flags).render())
+            parts.append(GlobalFlags(flags))
 
-        parts.append(self.optimize().render())
+        parts.append(self.optimize())
 
-        return "".join(itertools.chain(*parts))
+        return "".join(map(renderer.render_string, parts))
 
     def __repr__(self) -> str:
         return self.render_str()
@@ -452,16 +460,16 @@ class GroupBase(RegexPattern):
     def __init__(self, *contents: AnyRegexPattern):
         self.contents = pattern(contents)
 
-    def render_prefix(self) -> StrGen:
+    def render_prefix(self) -> TokenStream:
         yield self.prefix
 
     def case_insensitive(self):
         return self.apply(lambda x: x.case_insensitive())
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         yield "("
         yield from self.render_prefix()
-        yield from self.contents.render()
+        yield from self.contents.render(context)
         yield ")"
 
     def apply(self, fn: Processor) -> Self:
@@ -602,15 +610,17 @@ class Chars(CharBase):
                 return True
         return False
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         if len(self.contents) == 1:
             contents = self.contents[0]
             if contents.is_single_char():
-                yield from contents.render_literal()
+                yield from contents.render_literal(context)
                 return
         yield "["
+
         for char in self.contents:
-            yield from char.render()
+            yield from char.render(context)
+
         yield "]"
 
     def to(self, other: str | Literal | Chars) -> Chars:
@@ -662,12 +672,12 @@ class Chars(CharBase):
 
 
 class ReversedChars(CharBase):
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         yield "["
         yield "^"
         for char in self.contents:
             if isinstance(char, (Literal, CharRange)):
-                yield from char.render()
+                yield from char.render(context)
             elif char in Chars.non_special:
                 yield char
             else:
@@ -692,7 +702,7 @@ class ReversedChars(CharBase):
         return Option(self, other)
 
 
-class CharRange:
+class CharRange(BaseRenderable):
     min_char = 0
     max_char = 0x10FFFF
 
@@ -726,7 +736,7 @@ class CharRange:
     def render_char(char: int) -> str:
         return re.escape(chr(char))
 
-    def render(self) -> StrGen:
+    def stream(self, context: Context) -> TokenStream:
         if self.meta:
             yield self.meta
             return
@@ -748,11 +758,14 @@ class CharRange:
         if self.stop != CharRange.max_char:
             yield self.render_char(self.stop)
 
-    def render_literal(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
+        return self.stream(context)
+
+    def render_literal(self, context: Context) -> TokenStream:
         if self.meta:
             yield self.meta
             return
-        yield from Literal(chr(self.start)).render()
+        yield from Literal(chr(self.start)).render(context)
 
     @staticmethod
     def exclude_bounds(bounds: Bounds, exclude: Bounds) -> list[Bounds]:
@@ -805,7 +818,7 @@ class CharRange:
         return self.start == self.stop
 
     def __repr__(self):
-        return "".join(self.render())
+        return Renderer().render_string(self)
 
     def __eq__(self, other: object):
         if not isinstance(other, CharRange):
@@ -869,9 +882,9 @@ class Concat(RegexPattern):
     def case_insensitive(self) -> RegexPattern:
         return self.apply(lambda x: x.case_insensitive())
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         for part in self.contents:
-            yield from part.render()
+            yield from part.render(context)
 
     def merge_flags(self) -> LocalFlags | Concat:
         processed, common_flags = self.merge_flags_abstract(self.contents)
@@ -911,13 +924,13 @@ class Option(RegexPattern):
 
         return LocalFlags(new, "".join(common_flags))
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         if not self.alternatives:
             return
-        yield from self.alternatives[0].render()
+        yield from self.alternatives[0].render(context)
         for alternative in self.alternatives[1:]:
             yield "|"
-            yield from alternative.render()
+            yield from alternative.render(context)
 
     def __or__(self, other: AnyRegexPattern) -> Option:
         return Option(*self.alternatives, other)
@@ -938,11 +951,11 @@ class LocalFlags(FlagLike):
     def case_insensitive(self) -> RegexPattern:
         return self.apply(lambda x: x.case_insensitive())
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         yield "(?"
         yield self.flags
         yield ":"
-        yield from self.contents.render()
+        yield from self.contents.render(context)
         yield ")"
 
     def apply(self, fn: Processor) -> Self:
@@ -1036,7 +1049,7 @@ class Range(RegexPattern):
     def __rshift__(self, count: int) -> Range:
         return self.to(count)
 
-    def render_quantifier(self) -> StrGen:
+    def render_quantifier(self) -> TokenStream:
         if self.max_count is None:
             if not self.min_count:
                 yield "*"
@@ -1068,11 +1081,11 @@ class Range(RegexPattern):
 
         yield "}"
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         if self.max_count == 0:
             return
 
-        yield from self.contents.render()
+        yield from self.contents.render(context)
 
         if self.min_count == self.max_count == 1:
             return
@@ -1123,13 +1136,13 @@ class NamedPattern(RegexPattern):
         contents = self.contents.case_insensitive() if self.contents else None
         return NamedPattern(self.name, contents)
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         yield "(?P"
         if self.contents:
             yield "<"
             yield self.name
             yield ">"
-            yield from self.contents.render()
+            yield from self.contents.render(context)
         else:
             yield "="
             yield self.name
@@ -1193,13 +1206,13 @@ class ConditionalPattern(RegexPattern):
         self.true_option = respect_priority(true_option, Option.priority + 1)
         self.false_option = respect_priority(false_option, Option.priority + 1)
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         yield "(?("
         yield str(self.group)
         yield ")"
-        yield from self.true_option.render()
+        yield from self.true_option.render(context)
         yield "|"
-        yield from self.false_option.render()
+        yield from self.false_option.render(context)
         yield ")"
 
     def apply(self, fn: Processor) -> Self:
@@ -1222,7 +1235,7 @@ class Literal(RegexPattern):
     def to(self, other: str | Literal | Chars) -> Chars:
         return Chars([self]).to(other)
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         yield re.escape(self.contents)
 
     def apply(self, fn: Processor) -> Self:
@@ -1236,7 +1249,7 @@ class UnescapedLiteral(Literal):
 
     """
 
-    def render(self) -> StrGen:
+    def render(self, context: Context) -> TokenStream:
         yield str(self.contents)
 
 
