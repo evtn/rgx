@@ -6,6 +6,7 @@ from typing import (
     Tuple,
     List,
     Union,
+    cast,
     overload,
     Iterable,
     Sequence,
@@ -94,16 +95,21 @@ def respect_priority(contents: AnyRegexPattern, other_priority: int) -> RegexPat
     if isinstance(contents, NonCapturingGroup):
         return respect_priority(contents.contents, other_priority)
 
-    if contents.priority < other_priority:
-        return NonCapturingGroup(contents)
-
-    return contents
+    return cast(
+        RegexPattern,
+        contents.respect_priority(
+            _PriorityShell(other_priority),
+        ),
+    )
 
 
 class RegexPattern(BaseRenderable):
     priority: int = 100 * priority_step
     optimized = False
     default_context: Context = Context(Renderer())
+
+    def wrap(self):
+        return NonCapturingGroup(self)
 
     def render(self, context: Context) -> TokenStream:
         """
@@ -451,6 +457,11 @@ class RegexPattern(BaseRenderable):
 
     def named(self, name: str) -> NamedPattern:
         return NamedPattern(name, self)
+
+
+class _PriorityShell(RegexPattern):
+    def __init__(self, priority: int) -> None:
+        self.priority = priority
 
 
 class GroupBase(RegexPattern):

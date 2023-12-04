@@ -496,18 +496,18 @@ unicode_meta.NON_DIGIT = PROPERTY("Nd")
 ## Extending
 
 You can extend generation by subclassing one of the classes of `rgx.entities` module.  
-The one neccessary method to provide is `.render(self)`. It should return an iterable of strings (e.g. `["something"]`).  
+The one neccessary method to provide is `.render(self, context: rgx.Context)`. It should return an iterable of strings (e.g. `["something"]`).  
 Built-in components (and this section) are using generators for that purpose, but you're free to choose whatever works for you.
 For example, if you want to render a PCRE accept control verb - `(*ACCEPT)`, you can do it like this:
 
 ```python
 from rgx.entities import RegexPattern, Concat
-from rgx import pattern
+from rgx import pattern, Context
 from typing import Iterable
 
 
 class Accept(RegexPattern):
-    def render(self) -> Iterable[str]:
+    def render(self, context: Context) -> Iterable[str]:
         yield "(*ACCEPT)"
 
 
@@ -525,7 +525,7 @@ Or like this:
 
 ```python
 from rgx.entities import RegexPattern, Concat
-from rgx import pattern
+from rgx import pattern, Context
 from typing import Iterable
 
 
@@ -533,12 +533,12 @@ class Accept(RegexPattern):
     def __init__(self, accepted_pattern: RegexPattern):
         self.accepted_pattern = accepted_pattern
 
-    def render(self) -> Iterable[str]:
-        yield from accepted_pattern.render()
+    def render(self, context: Context) -> Iterable[str]:
+        yield from accepted_pattern.render(context)
         yield "(*ACCEPT)"
 
 
-def accept(self) -> Concat:
+def accept(self) -> Accept:
     return Accept(self)
 
 RegexPattern.accept = accept
@@ -552,7 +552,7 @@ If your extension has to rely on some priority, you can use `respect_priority` f
 Let's say you want to add a `x/y` operation, which does something (wow) and has prority between `a|b` and `ab` — so `a|b/cd` is the same as `a|(?:b/(?:cd))`.
 
 ```python
-from rgx.entities import RegexPattern, Concat, Option, AnyRegexPattern, respect_priority, pattern
+from rgx.entities import RegexPattern, Concat, Option, AnyRegexPattern, respect_priority, pattern, Context
 from typing import Iterable
 
 class MagicSlash(RegexPattern):
@@ -562,10 +562,10 @@ class MagicSlash(RegexPattern):
         self.left = respect_priority(left, self.priority) # you need to wrap all parts of your expression in respect_priority()
         self.right = respect_priority(right, self.priority) # ...and pass your expression priority as a second argument
 
-    def render(self) -> Iterable[str]:
-        yield from self.left.render()
+    def render(self, context: Context) -> Iterable[str]:
+        yield from self.left.render(context)
         yield "/"
-        yield from self.right.render()
+        yield from self.right.render(context)
 
 
 def slash(self, other: AnyRegexPattern) -> MagicSlash: # AnyRegexPattern is either a RegexPattern instance or a Python literal
