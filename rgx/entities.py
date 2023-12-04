@@ -8,14 +8,12 @@ from typing import (
     Union,
     cast,
     overload,
-    Iterable,
     Sequence,
     TYPE_CHECKING,
 )
 
 from wordstreamer import Context, Renderable as BaseRenderable, Renderer, TokenStream
-from wordstreamer.core import Marker
-from wordstreamer.internal_types import Payload
+from wordstreamer.internal_types import Comparator, Payload
 
 if TYPE_CHECKING:
     from typing import Literal as LiteralType, Self
@@ -90,14 +88,9 @@ def pattern(literal: AnyRegexPattern, escape: bool = True) -> RegexPattern:
 
 
 def respect_priority(contents: AnyRegexPattern, other_priority: int) -> RegexPattern:
-    contents = pattern(contents)
-
-    if isinstance(contents, NonCapturingGroup):
-        return respect_priority(contents.contents, other_priority)
-
     return cast(
         RegexPattern,
-        contents.respect_priority(
+        pattern(contents).respect_priority(
             _PriorityShell(other_priority),
         ),
     )
@@ -498,6 +491,14 @@ class NonCapturingGroup(GroupBase):
         if isinstance(self.contents, NonCapturingGroup):
             return self.contents.optimize()
         return super().optimize()
+
+    def respect_priority(
+        self,
+        operation: BaseRenderable,
+        comparator: Comparator | None = None,
+        side: str = "none",
+    ) -> BaseRenderable:
+        return self.contents.respect_priority(operation, comparator, side)
 
 
 class Lookahead(GroupBase):
