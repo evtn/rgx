@@ -1,8 +1,10 @@
-Many people complain about unreadable and complex syntax of regular expressions.    
+[![wordstreamer badge](https://img.shields.io/badge/renderable-what?label=wordstreamer&color=%2333bb33)](https://github.com/evtn/wordstreamer)
+
+Many people complain about unreadable and complex syntax of regular expressions.  
 Many others complain about how they can't remember all constructs and features.
 
-`rgx` solves those problems: it is a straightforward regexp builder. It also places non-capturing groups where needed to respect intended operator priority.   
-It can produce a regular expression string to use in `re.compile` or any other regex library of your choice.    
+`rgx` solves those problems: it is a straightforward regexp builder. It also places non-capturing groups where needed to respect intended operator priority.  
+It can produce a regular expression string to use in `re.compile` or any other regex library of your choice.
 
 In other words, with `rgx` you can build a regular expression from parts, using straightforward and simple expressions.
 
@@ -68,19 +70,19 @@ int_regex = re.compile(str(integer))
 
 ## Quickstart
 
-*in this readme, `x` means some pattern object. Occasionaly, `y` is introduced to mean some other pattern object (or literal)*
+_in this readme, `x` means some pattern object. Occasionaly, `y` is introduced to mean some other pattern object (or literal)_
 
 ### Literals and pattern objects
 
-`rgx` operates mostly on so-called "pattern objects" — `rgx.entities.RegexPattern` istances.    
+`rgx` operates mostly on so-called "pattern objects" — `rgx.entities.RegexPattern` istances.  
 Your starting point would be `rgx.pattern` — it creates pattern objects from literals (and from pattern objects, which doesn't make a lot of sense).
 
-- `rgx.pattern(str, escape: bool = True)` creates a literal pattern — one that exactly matches given string. If you want to disable escaping, pass `escape=False`
-- `rgx.pattern(tuple[AnyRegexPattern])` creates a non-capturing group of patterns (nested literals will be converted too)
-- `rgx.pattern(list[str])` creates a character class (for example, `rgx.pattern(["a", "b", "c"])` creates pattern `[abc]`, that matches any character of those in brackets)
-    - Same can be achieved by `rgx.pattern("a").to("c")` or `rgx.pattern("a") | "b" | "c"`
+-   `rgx.pattern(str, escape: bool = True)` creates a literal pattern — one that exactly matches given string. If you want to disable escaping, pass `escape=False`
+-   `rgx.pattern(tuple[AnyRegexPattern])` creates a non-capturing group of patterns (nested literals will be converted too)
+-   `rgx.pattern(list[str])` creates a character class (for example, `rgx.pattern(["a", "b", "c"])` creates pattern `[abc]`, that matches any character of those in brackets)
+    -   Same can be achieved by `rgx.pattern("a").to("c")` or `rgx.pattern("a") | "b" | "c"`
 
-Most operations with pattern objects support using Python literals on one side, for example: `rgx.pattern("a") | b` would produce `[ab]` pattern object (specifically, `rgx.entities.Chars`)    
+Most operations with pattern objects support using Python literals on one side, for example: `rgx.pattern("a") | b` would produce `[ab]` pattern object (specifically, `rgx.entities.Chars`)
 
 ### Rendering patterns
 
@@ -95,7 +97,7 @@ p = x | y
 rendered_with_str = str(p) # "one|two"
 rendered_with_method = p.render_str() # "one|two"
 rendered_with_method_flags = p.render_str("im") # (?im)one|two
-```    
+```
 
 ### Capturing Groups
 
@@ -119,8 +121,8 @@ print(named_x_reference) # (?P=x)
 
 ```
 
-To create a capturing group, use `x.capture()`, or `rgx.reference(group: int)` for a reference.    
-To create a named capturing group, use `rgx.named(name: str, x)`, or `rgx.named(name: str)` for a named reference.    
+To create a capturing group, use `x.capture()`, or `rgx.reference(group: int)` for a reference.  
+To create a named capturing group, use `rgx.named(name: str, x)`, or `rgx.named(name: str)` for a named reference.
 
 ### Character classes
 
@@ -131,7 +133,7 @@ from rgx import pattern, meta
 az = pattern("a").to("z") # rgx.Chars.to(other: str | Literal | Chars)
 print(az) # [a-z]
 
-digits_or_space = pattern(["1", "2", "3", meta.WHITESPACE]) 
+digits_or_space = pattern(["1", "2", "3", meta.WHITESPACE])
 print(digits_or_space) # [123\s]
 
 print(az | digits_or_space) # [a-z123\s]
@@ -170,7 +172,7 @@ capture = x.capture()
 print(
     capture + conditional(1, y, z)
 )
-``` 
+```
 
 ### Repeating patterns
 
@@ -212,15 +214,16 @@ a.some()                         # a*
 # or (what)
 +-(a * 38)                       # a*
 ```
-Here's what's going on:    
-`pattern.repeat(count, lazy)` returns a `{count, count}` `Range` object    
+
+Here's what's going on:  
+`pattern.repeat(count, lazy)` returns a `{count, count}` `Range` object  
 `pattern * count` is the same as `pattern.repeat(count, False)`
 
 `Range` implements `or_more`, `or_less` and `to` methods:
 
-- `Range.or_more()` [or `+Range`] moves (on a copy) upper bound of range to infinity (actually `None`)
-- `Range.or_less()` [or `-Range`] moves (on a copy) lower bound of range to 0
-- `Range.to(count)` [or `Range >> count` (right shift)] replaces upper bound with given number
+-   `Range.or_more()` [or `+Range`] moves (on a copy) upper bound of range to infinity (actually `None`)
+-   `Range.or_less()` [or `-Range`] moves (on a copy) lower bound of range to 0
+-   `Range.to(count)` [or `Range >> count` (right shift)] replaces upper bound with given number
 
 Also, RegexPattern implements unary plus (`+pattern`) as an alias for `pattern.many()`
 
@@ -467,7 +470,8 @@ print(meta.CHAR_ESCAPE(320000)) # \U0004e200
 
 `rgx.unicode_meta` is a collection of functions and constants, mostly for `\p` and `\P` usage:
 
-Functions:    
+Functions:
+
 ```python
 unicode_meta.PROPERTY(value: str) # renders into `\p{value}` (any character with property specified by value, e.g. `PROPERTY("Ll") -> \p{Ll}`)
 unicode_meta.PROPERTY_INVERSE(value: str) # matches all characters *not* matched by corresponding `PROPERTY` (`\P{value}`)
@@ -475,7 +479,9 @@ unicode_meta.PROPERTY_INVERSE(value: str) # matches all characters *not* matched
 unicode_meta.NAMED_PROPERTY(name: str, value: str) # renders into `\p{name=value}` and matches any character which property `name` equals `value`
 unicode_meta.NAMED_PROPERTY_INVERSE(name: str, value: str) # same, but inverted (`\P{name=value}`)
 ```
-Constants:    
+
+Constants:
+
 ```python
 unicode_meta.LETTER = PROPERTY("L")
 unicode_meta.NON_LETTER = PROPERTY_INVERSE("L")
@@ -486,22 +492,22 @@ unicode_meta.NON_WHITESPACE = PROPERTY_INVERSE("Z")
 unicode_meta.DIGIT = PROPERTY("Nd")
 unicode_meta.NON_DIGIT = PROPERTY("Nd")
 ```
+
 ## Extending
 
-You can extend generation by subclassing one of the classes of `rgx.entities` module.    
-The one neccessary method to provide is `.render(self)`. It should return an iterable of strings (e.g. `["something"]`).    
+You can extend generation by subclassing one of the classes of `rgx.entities` module.  
+The one neccessary method to provide is `.render(self, context: rgx.Context)`. It should return an iterable of strings (e.g. `["something"]`).  
 Built-in components (and this section) are using generators for that purpose, but you're free to choose whatever works for you.
 For example, if you want to render a PCRE accept control verb - `(*ACCEPT)`, you can do it like this:
 
-
 ```python
 from rgx.entities import RegexPattern, Concat
-from rgx import pattern
+from rgx import pattern, Context
 from typing import Iterable
 
 
 class Accept(RegexPattern):
-    def render(self) -> Iterable[str]:
+    def render(self, context: Context) -> Iterable[str]:
         yield "(*ACCEPT)"
 
 
@@ -511,7 +517,7 @@ def accept(self) -> Concat:
 
 RegexPattern.accept = accept
 
-x = pattern("something").accept() 
+x = pattern("something").accept()
 print(x) # something(*ACCEPT)
 ```
 
@@ -519,7 +525,7 @@ Or like this:
 
 ```python
 from rgx.entities import RegexPattern, Concat
-from rgx import pattern
+from rgx import pattern, Context
 from typing import Iterable
 
 
@@ -527,12 +533,12 @@ class Accept(RegexPattern):
     def __init__(self, accepted_pattern: RegexPattern):
         self.accepted_pattern = accepted_pattern
 
-    def render(self) -> Iterable[str]:
-        yield from accepted_pattern.render()
+    def render(self, context: Context) -> Iterable[str]:
+        yield from accepted_pattern.render(context)
         yield "(*ACCEPT)"
 
 
-def accept(self) -> Concat:
+def accept(self) -> Accept:
     return Accept(self)
 
 RegexPattern.accept = accept
@@ -542,24 +548,24 @@ x = pattern("something").accept() # something(*ACCEPT)
 
 ### Priority
 
-If your extension has to rely on some priority, you can use `respect_priority` function.    
-Let's say you want to add a `x/y` operation, which does something (wow) and has prority between `a|b` and `ab` — so `a|b/cd` is the same as `a|(?:b/(?:cd))`.    
+If your extension has to rely on some priority, you can use `respect_priority` function.  
+Let's say you want to add a `x/y` operation, which does something (wow) and has prority between `a|b` and `ab` — so `a|b/cd` is the same as `a|(?:b/(?:cd))`.
 
 ```python
-from rgx.entities import RegexPattern, Concat, Option, AnyRegexPattern, respect_priority, pattern
+from rgx.entities import RegexPattern, Concat, Option, AnyRegexPattern, respect_priority, pattern, Context
 from typing import Iterable
 
 class MagicSlash(RegexPattern):
     priority = (Concat.priority + Option.priority) // 2 # let's take something in the middle
 
     def __init__(self, left: RegexPattern, right: RegexPattern):
-        self.left = respect_priority(left, self.priority) # you need to wrap all parts of your expression in respect_priority() 
+        self.left = respect_priority(left, self.priority) # you need to wrap all parts of your expression in respect_priority()
         self.right = respect_priority(right, self.priority) # ...and pass your expression priority as a second argument
 
-    def render(self) -> Iterable[str]:
-        yield from self.left.render()
+    def render(self, context: Context) -> Iterable[str]:
+        yield from self.left.render(context)
         yield "/"
-        yield from self.right.render()
+        yield from self.right.render(context)
 
 
 def slash(self, other: AnyRegexPattern) -> MagicSlash: # AnyRegexPattern is either a RegexPattern instance or a Python literal
@@ -594,17 +600,16 @@ print(
 
 ```
 
-
 ## Common questions
 
 ### Difference between `(x, y)` and `x + y`
 
-Previous examples used `()` and `+`, and the difference might not be so obvious.    
+Previous examples used `()` and `+`, and the difference might not be so obvious.
 
-- `x + y` creates a concatenation of patterns (`rgx.entities.Concat`), with no extra characters apart from those of patterns
-- `x + y` can be used only if at least one of the operands is a pattern object (that is, created with one of `rgx` functions or is one of `rgx` constants)
-- `x + y` produces a pattern object itself, so you won't need to call `pattern` on it to call pattern methods
+-   `x + y` creates a concatenation of patterns (`rgx.entities.Concat`), with no extra characters apart from those of patterns
+-   `x + y` can be used only if at least one of the operands is a pattern object (that is, created with one of `rgx` functions or is one of `rgx` constants)
+-   `x + y` produces a pattern object itself, so you won't need to call `pattern` on it to call pattern methods
 
-- `pattern((x, y))` creates a non-capturing group (`rgx.entities.NonCapturingGroup`): `pattern((x, y)).render_str()` -> `(?:xy)`
-- `(x, y)` can be used with any pattern-like literals or pattern objects
-- `(x, y)` is a tuple literal, so you can't use pattern methods on it directly or convert it into a complete expression (you need to use `rgx.pattern` on it first)
+-   `pattern((x, y))` creates a non-capturing group (`rgx.entities.NonCapturingGroup`): `pattern((x, y)).render_str()` -> `(?:xy)`
+-   `(x, y)` can be used with any pattern-like literals or pattern objects
+-   `(x, y)` is a tuple literal, so you can't use pattern methods on it directly or convert it into a complete expression (you need to use `rgx.pattern` on it first)

@@ -54,4 +54,4 @@ class TestClass:
     def test_that_render_on_regex_pattern_is_not_implemented_i_know_this_is_stupid_but_still(
         self,
     ):
-        assert RegexPattern().render() == NotImplemented
+        assert RegexPattern().render(RegexPattern.default_context) == NotImplemented
